@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <title>Beispiel-App – MilosApps</title>
+    <link rel="stylesheet" href="./tokens.css">
+    <link rel="stylesheet" href="./reference.css">
+    <script src="./reference.js" defer></script>
+  </head>
+  <body data-milos-shell data-app-key="example-app" data-environment="dev">
+    <a class="milos-shell-skip" href="#main" data-i18n="skip">
+      Zum Inhalt
+    </a>
+
+    <header class="milos-shell-header">
+      <div class="milos-shell-container milos-shell-header__inner">
+        <a class="milos-shell-brand" data-shell-link="home" href="https://dev.milos-apps.de/">
+          <span class="milos-shell-brand__icon" aria-hidden="true">
+            <!-- Durch das app-eigene, optisch zentrierte SVG ersetzen. -->
+            <svg viewBox="0 0 40 40" role="img">
+              <circle cx="20" cy="20" r="18" fill="currentColor" opacity=".16"></circle>
+              <path d="M20 7 23.7 16.3 33 20l-9.3 3.7L20 33l-3.7-9.3L7 20l9.3-3.7L20 7Z" fill="currentColor"></path>
+            </svg>
+          </span>
+          <span class="milos-shell-brand__word">MilosApps</span>
+          <span class="milos-shell-dev" data-dev-only>DEV</span>
+        </a>
+
+        <nav
+          class="milos-shell-nav"
+          aria-label="App-Navigation"
+          data-i18n-aria-label="appNav"
+        >
+          <div
+            class="milos-shell-language"
+            role="group"
+            aria-label="Sprache"
+            data-i18n-aria-label="languageNav"
+          >
+            <button
+              class="milos-shell-control"
+              type="button"
+              data-language="de"
+              aria-pressed="true"
+            >
+              DE
+            </button>
+            <button
+              class="milos-shell-control"
+              type="button"
+              data-language="en"
+              aria-pressed="false"
+            >
+              EN
+            </button>
+          </div>
+          <a
+            class="milos-shell-control milos-shell-control--primary"
+            data-shell-link="apps"
+            data-i18n="allApps"
+            href="https://dev.milos-apps.de/apps"
+          >
+            Alle Apps
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="milos-shell-main">
+      <div class="milos-shell-container">
+        <section class="milos-shell-example" aria-labelledby="app-title">
+          <h1 id="app-title" data-i18n="appTitle">Beispiel-App</h1>
+          <p data-i18n="intro">
+            Der App-Name und die eigentliche Aufgabe bleiben in der Hauptfläche.
+            Der Rahmen bleibt kompakt und nimmt der App nicht ihre Identität.
+          </p>
+          <div class="milos-shell-example__card">
+            <strong data-i18n="cardTitle">App-eigener Inhalt</strong>
+            <span data-i18n="cardText">
+              Auch Status, Hinweise und Fehlermeldungen werden vollständig übersetzt.
+            </span>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="milos-shell-footer">
+      <div class="milos-shell-container milos-shell-footer__inner">
+        <p data-i18n="footerText">Ein kurzer, app-spezifischer Abschlusstext.</p>
+        <nav aria-label="Rechtliches" data-i18n-aria-label="footerNav">
+          <a data-shell-link="legal" data-i18n="legal" href="https://dev.milos-apps.de/impressum">
+            Impressum
+          </a>
+          <a data-shell-link="privacy" data-i18n="privacy" href="https://dev.milos-apps.de/datenschutz">
+            Datenschutz
+          </a>
+          <a data-shell-link="home" href="https://dev.milos-apps.de/">MilosApps</a>
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

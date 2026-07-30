@@ -10,6 +10,12 @@ Integrationsverträge.
   Integrationsverträge
 - [`CHANGELOG.md`](CHANGELOG.md): vorbereitete und veröffentlichte Änderungen
 
+## Verfügbare Verträge
+
+- [`public-app-shell/v1`](contracts/public-app-shell/v1/README.md): kompakter,
+  zweisprachiger Header-/Footer- und Portal-Link-Vertrag für öffentliche
+  MilosApps. Der Kalender ist ausdrücklich ausgeschlossen.
+
 ## Konsummodell
 
 Apps übernehmen ausschließlich eine markierte Release-Version oder ein daraus
@@ -17,12 +23,13 @@ gebautes Paket. Direkte relative Importe aus diesem Repository sind verboten.
 So kann jede App selbst entscheiden, wann sie eine neue Shared-Version testet
 und veröffentlicht.
 
-## Noch nicht festgelegt
+## Paketformat
 
-Ein Paketformat wird erst gewählt, wenn der erste echte gemeinsame Verbraucher
-feststeht. Möglich sind beispielsweise ein statisches Asset-Archiv, ein
-versioniertes NuGet-Paket oder ein npm-Paket. Bis dahin werden keine
-Build-Abhängigkeiten eingeführt.
+Es gibt noch keine gemeinsame Runtime und kein npm-/NuGet-Paket.
+`public-app-shell/v1` ist bewusst ein statischer, frameworkneutraler Vertrag.
+Apps übernehmen ihn aus einem festen Release beziehungsweise exakten
+Shared-Commit in das eigene Repository. Eine spätere Paketierung darf diesen
+Lifecyclegedanken nicht aufheben.
 
 Es wurden bewusst noch keine Assets aus bestehenden Apps kopiert. Vor der ersten
 Übernahme werden Quelle, Lizenz, Varianten, Barrierefreiheit und bestehende

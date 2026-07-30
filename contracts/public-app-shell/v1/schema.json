@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milos-apps.de/contracts/public-app-shell/v1/schema.json",
+  "title": "MilosApps Public App Shell v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "status",
+    "consumers",
+    "excludedConsumers",
+    "languages",
+    "environments",
+    "header",
+    "footer",
+    "layout",
+    "runtimeDependency",
+    "databaseDependency",
+    "productionApproved"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "id": {
+      "const": "public-app-shell/v1"
+    },
+    "version": {
+      "const": "1.0.0"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "stable",
+        "deprecated"
+      ]
+    },
+    "consumers": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "excludedConsumers": {
+      "type": "array",
+      "contains": {
+        "const": "calendar"
+      },
+      "minContains": 1
+    },
+    "languages": {
+      "type": "object",
+      "required": [
+        "required",
+        "storageKeyPattern",
+        "fallback",
+        "scope"
+      ]
+    },
+    "environments": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dev",
+        "production"
+      ]
+    },
+    "header": {
+      "type": "object"
+    },
+    "footer": {
+      "type": "object"
+    },
+    "layout": {
+      "type": "object"
+    },
+    "runtimeDependency": {
+      "const": false
+    },
+    "databaseDependency": {
+      "const": false
+    },
+    "productionApproved": {
+      "const": false
+    }
+  }
+}

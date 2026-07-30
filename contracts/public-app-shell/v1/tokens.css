@@ -1,0 +1,59 @@
+:root {
+  color-scheme: light dark;
+
+  --milos-shell-content-max: 72rem;
+  --milos-shell-gutter: clamp(1rem, 3vw, 1.5rem);
+  --milos-shell-header-block: 4.25rem;
+  --milos-shell-icon-size: 2.375rem;
+  --milos-shell-control-min: 2.75rem;
+  --milos-shell-gap-1: 0.375rem;
+  --milos-shell-gap-2: 0.625rem;
+  --milos-shell-gap-3: 1rem;
+  --milos-shell-gap-4: 1.5rem;
+  --milos-shell-radius: var(--app-radius, 0.8rem);
+  --milos-shell-font: var(
+    --app-font,
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif
+  );
+
+  --milos-shell-surface: var(--app-surface, #ffffff);
+  --milos-shell-surface-soft: var(--app-surface-soft, #f1f5f4);
+  --milos-shell-text: var(--app-text, #14211f);
+  --milos-shell-text-muted: var(--app-text-muted, #53605e);
+  --milos-shell-border: var(--app-border, #ccd7d4);
+  --milos-shell-accent: var(--app-accent, #176b63);
+  --milos-shell-accent-contrast: var(--app-accent-contrast, #ffffff);
+  --milos-shell-focus: var(--app-focus, #f59e0b);
+  --milos-shell-dev-bg: var(--app-dev-bg, #e7f5f2);
+  --milos-shell-dev-text: var(--app-dev-text, #155f58);
+  --milos-shell-shadow: 0 0.25rem 1rem rgb(15 41 37 / 8%);
+
+  --milos-shell-transition: 160ms ease;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --milos-shell-surface: var(--app-surface, #111917);
+    --milos-shell-surface-soft: var(--app-surface-soft, #1a2522);
+    --milos-shell-text: var(--app-text, #f1f7f5);
+    --milos-shell-text-muted: var(--app-text-muted, #b2c0bd);
+    --milos-shell-border: var(--app-border, #334440);
+    --milos-shell-accent: var(--app-accent, #65c9bd);
+    --milos-shell-accent-contrast: var(--app-accent-contrast, #0b1715);
+    --milos-shell-focus: var(--app-focus, #fbbf24);
+    --milos-shell-dev-bg: var(--app-dev-bg, #173b36);
+    --milos-shell-dev-text: var(--app-dev-text, #a7eee5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --milos-shell-transition: 0ms;
+  }
+}

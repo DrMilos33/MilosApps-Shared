@@ -1,0 +1,269 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 20rem;
+  background: var(--milos-shell-surface);
+  color: var(--milos-shell-text);
+  font-family: var(--milos-shell-font);
+}
+
+body {
+  min-height: 100svh;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--milos-shell-accent) 9%, transparent), transparent 28rem),
+    var(--milos-shell-surface);
+}
+
+a {
+  color: inherit;
+}
+
+.milos-shell-container {
+  width: min(100%, var(--milos-shell-content-max));
+  margin-inline: auto;
+  padding-inline: var(--milos-shell-gutter);
+}
+
+.milos-shell-skip {
+  position: fixed;
+  z-index: 10;
+  inset-block-start: 0.5rem;
+  inset-inline-start: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--milos-shell-radius);
+  color: var(--milos-shell-accent-contrast);
+  background: var(--milos-shell-accent);
+  transform: translateY(-150%);
+  transition: transform var(--milos-shell-transition);
+}
+
+.milos-shell-skip:focus {
+  transform: translateY(0);
+}
+
+.milos-shell-header {
+  position: static;
+  border-block-end: 1px solid var(--milos-shell-border);
+  background: color-mix(in srgb, var(--milos-shell-surface) 94%, transparent);
+}
+
+.milos-shell-header__inner {
+  min-height: var(--milos-shell-header-block);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--milos-shell-gap-3);
+  padding-block: 0.5rem;
+}
+
+.milos-shell-brand {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--milos-shell-gap-2);
+  color: inherit;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.milos-shell-brand__icon {
+  width: var(--milos-shell-icon-size);
+  height: var(--milos-shell-icon-size);
+  flex: 0 0 var(--milos-shell-icon-size);
+  display: inline-grid;
+  place-items: center;
+  color: var(--milos-shell-accent);
+}
+
+.milos-shell-brand__icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.milos-shell-brand__word {
+  white-space: nowrap;
+}
+
+.milos-shell-dev {
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  color: var(--milos-shell-dev-text);
+  background: var(--milos-shell-dev-bg);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.milos-shell-nav,
+.milos-shell-language {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--milos-shell-gap-1);
+}
+
+.milos-shell-nav {
+  justify-content: flex-end;
+}
+
+.milos-shell-control {
+  min-width: var(--milos-shell-control-min);
+  min-height: var(--milos-shell-control-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--milos-shell-border);
+  border-radius: var(--milos-shell-radius);
+  color: var(--milos-shell-text);
+  background: var(--milos-shell-surface);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    color var(--milos-shell-transition),
+    background var(--milos-shell-transition),
+    border-color var(--milos-shell-transition);
+}
+
+.milos-shell-control:hover {
+  border-color: var(--milos-shell-accent);
+}
+
+.milos-shell-control[aria-pressed="true"],
+.milos-shell-control--primary {
+  border-color: var(--milos-shell-accent);
+  color: var(--milos-shell-accent-contrast);
+  background: var(--milos-shell-accent);
+}
+
+:where(a, button):focus-visible {
+  outline: 3px solid var(--milos-shell-focus);
+  outline-offset: 3px;
+}
+
+.milos-shell-main {
+  width: 100%;
+  flex: 1 0 auto;
+  padding-block: clamp(2rem, 7vw, 5rem);
+}
+
+.milos-shell-example {
+  max-width: 46rem;
+}
+
+.milos-shell-example h1 {
+  margin: 0;
+  font-size: clamp(2rem, 7vw, 4.25rem);
+  line-height: 1;
+  letter-spacing: -0.055em;
+}
+
+.milos-shell-example p {
+  max-width: 62ch;
+  margin-block: 1rem 0;
+  color: var(--milos-shell-text-muted);
+  font-size: clamp(1rem, 2vw, 1.15rem);
+  line-height: 1.65;
+}
+
+.milos-shell-example__card {
+  margin-block-start: 2rem;
+  padding: clamp(1rem, 4vw, 1.5rem);
+  border: 1px solid var(--milos-shell-border);
+  border-radius: calc(var(--milos-shell-radius) * 1.2);
+  background: var(--milos-shell-surface-soft);
+  box-shadow: var(--milos-shell-shadow);
+}
+
+.milos-shell-example__card strong {
+  display: block;
+  margin-block-end: 0.35rem;
+}
+
+.milos-shell-footer {
+  border-block-start: 1px solid var(--milos-shell-border);
+  background: var(--milos-shell-surface);
+}
+
+.milos-shell-footer__inner {
+  min-height: 3.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--milos-shell-gap-3);
+  padding-block: 0.55rem;
+}
+
+.milos-shell-footer p {
+  margin: 0;
+  color: var(--milos-shell-text-muted);
+  font-size: 0.85rem;
+}
+
+.milos-shell-footer nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+}
+
+.milos-shell-footer a {
+  min-height: var(--milos-shell-control-min);
+  display: inline-flex;
+  align-items: center;
+  color: var(--milos-shell-text-muted);
+  font-size: 0.85rem;
+  font-weight: 650;
+  text-underline-offset: 0.2em;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 42rem) {
+  .milos-shell-header__inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .milos-shell-nav {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .milos-shell-footer__inner {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .milos-shell-footer nav {
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

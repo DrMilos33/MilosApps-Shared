@@ -1,0 +1,83 @@
+{
+  "$schema": "./schema.json",
+  "id": "public-app-shell/v1",
+  "version": "1.0.0",
+  "status": "stable",
+  "consumers": [
+    "noodle-calculator",
+    "sky",
+    "cloud-post",
+    "somewhere-now",
+    "gravity-loop",
+    "waste-guide",
+    "daylight"
+  ],
+  "excludedConsumers": [
+    "calendar"
+  ],
+  "languages": {
+    "required": [
+      "de",
+      "en"
+    ],
+    "storageKeyPattern": "milosapps.<app-key>.language",
+    "fallback": "de",
+    "scope": "all-visible-ui"
+  },
+  "environments": {
+    "dev": {
+      "badge": "DEV",
+      "portalBase": "https://dev.milos-apps.de",
+      "links": {
+        "home": "https://dev.milos-apps.de/",
+        "apps": "https://dev.milos-apps.de/apps",
+        "legal": "https://dev.milos-apps.de/impressum",
+        "privacy": "https://dev.milos-apps.de/datenschutz"
+      }
+    },
+    "production": {
+      "badge": null,
+      "portalBase": "https://milos-apps.de",
+      "links": {
+        "home": "https://milos-apps.de/",
+        "apps": "https://milos-apps.de/apps",
+        "legal": "https://milos-apps.de/impressum",
+        "privacy": "https://milos-apps.de/datenschutz"
+      }
+    }
+  },
+  "header": {
+    "position": "normal-flow",
+    "sticky": "app-specific-justification-only",
+    "icon": {
+      "ownership": "app",
+      "format": "svg",
+      "visibleSizeMinPx": 36,
+      "visibleSizeMaxPx": 40
+    },
+    "wordmark": "MilosApps",
+    "appNamePlacement": "main-h1",
+    "controlsMinTargetPx": 44
+  },
+  "footer": {
+    "density": "compact",
+    "topDivider": true,
+    "desktop": "row",
+    "mobile": "wrap",
+    "requiredLinks": [
+      "legal",
+      "privacy",
+      "home"
+    ]
+  },
+  "layout": {
+    "contentMax": "72rem",
+    "mobileTestWidthPx": 390,
+    "zoomPercent": 200,
+    "horizontalOverflowAllowed": false,
+    "reducedMotionRequired": true
+  },
+  "runtimeDependency": false,
+  "databaseDependency": false,
+  "productionApproved": false
+}
