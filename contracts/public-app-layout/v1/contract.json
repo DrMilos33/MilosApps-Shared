@@ -1,0 +1,102 @@
+{
+  "$schema": "./schema.json",
+  "id": "public-app-layout/v1",
+  "version": "1.0.0",
+  "status": "pilot",
+  "purpose": "compact-content-layout-for-public-no-login-apps",
+  "delivery": {
+    "format": "framework-neutral-css-primitives",
+    "mode": "pinned-build-time-vendor",
+    "cdnAllowed": false,
+    "crossRepositoryRuntimeImportAllowed": false,
+    "lockRequired": true,
+    "sha256Required": true,
+    "runtimeDependency": false,
+    "runtimeAssets": [
+      {
+        "file": "milos-app-layout.css",
+        "relativeUrl": "./milos-app-layout.css",
+        "contentType": "text/css; charset=utf-8"
+      },
+      {
+        "file": "milos-app-layout-theme.css",
+        "relativeUrl": "./milos-app-layout-theme.css",
+        "contentType": "text/css; charset=utf-8"
+      }
+    ]
+  },
+  "eligibleConsumers": [
+    "noodle-calculator",
+    "sky",
+    "cloud-post",
+    "somewhere-now",
+    "gravity-loop",
+    "waste-guide",
+    "daylight"
+  ],
+  "pilotConsumer": "cloud-post",
+  "referenceConsumers": [
+    "sky",
+    "gravity-loop",
+    "noodle-calculator"
+  ],
+  "excludedConsumers": [
+    "calendar"
+  ],
+  "excludedClasses": [
+    "login-required"
+  ],
+  "relationship": {
+    "shellContract": "public-app-shell/v2",
+    "shellOwns": [
+      "header",
+      "footer",
+      "locale-control",
+      "portal-links"
+    ],
+    "layoutOwns": [
+      "main-content-axis",
+      "intro-density",
+      "primary-work-position",
+      "surface-depth",
+      "responsive-primitives"
+    ]
+  },
+  "profiles": [
+    "focused-task",
+    "guided-flow",
+    "immersive"
+  ],
+  "requiredMarkers": [
+    "data-milos-layout=compact",
+    "data-milos-intro",
+    "data-milos-primary-work"
+  ],
+  "quality": {
+    "desktop": {
+      "viewport": "1440x900",
+      "introMaxHeightPx": 320,
+      "primaryWorkMaxTopPx": 520
+    },
+    "mobile": {
+      "viewport": "390x844",
+      "introMaxHeightPx": 280,
+      "primaryWorkMaxTopPx": 500
+    },
+    "zoom": {
+      "viewport": "360x800",
+      "percent": 200
+    },
+    "controlsMinTargetPx": 44,
+    "horizontalOverflowAllowed": false,
+    "nestedDecorativeSurfaceDepth": 1,
+    "reducedMotionRequired": true,
+    "deEnRequired": true,
+    "noLoginRequired": true
+  },
+  "rollout": {
+    "automaticMigration": false,
+    "pilotMustPassUserReview": true,
+    "productionApproved": false
+  }
+}

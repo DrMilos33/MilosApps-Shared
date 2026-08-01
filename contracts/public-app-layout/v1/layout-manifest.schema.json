@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milos-apps.de/contracts/public-app-layout/v1/layout-manifest.schema.json",
+  "title": "MilosApps public app layout consumer manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "appKey",
+    "public",
+    "loginRequired",
+    "layoutContract",
+    "profile",
+    "sources",
+    "theme",
+    "productionApproved"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "appKey": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "public": { "const": true },
+    "loginRequired": { "const": false },
+    "layoutContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "sharedCommit", "vendorDirectory"],
+      "properties": {
+        "id": { "const": "public-app-layout/v1" },
+        "version": { "const": "1.0.0" },
+        "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "vendorDirectory": { "type": "string", "minLength": 1 }
+      }
+    },
+    "profile": { "enum": ["focused-task", "guided-flow", "immersive"] },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["markup", "styles"],
+      "properties": {
+        "markup": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+        "styles": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page", "surface", "surfaceStrong", "text", "muted", "border", "accent", "accentContrast", "focus"],
+      "properties": {
+        "page": { "type": "string", "minLength": 1 },
+        "surface": { "type": "string", "minLength": 1 },
+        "surfaceStrong": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "muted": { "type": "string", "minLength": 1 },
+        "border": { "type": "string", "minLength": 1 },
+        "accent": { "type": "string", "minLength": 1 },
+        "accentContrast": { "type": "string", "minLength": 1 },
+        "focus": { "type": "string", "minLength": 1 }
+      }
+    },
+    "productionApproved": { "type": "boolean" }
+  }
+}

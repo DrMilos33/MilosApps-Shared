@@ -1,0 +1,9 @@
+{
+  "id": "public-app-layout/v1",
+  "version": "1.0.0",
+  "tag": "public-app-layout-v1.0.0",
+  "artifacts": {
+    "dist/milos-app-layout.css": "sha256:9f88a37766c88d037dd5eca0efa9f10dc11f20deb262f052a43124fdb1632cd9",
+    "dist/verify-layout.mjs": "sha256:b9251b4eb92e9215a5234a80c8b2ecd1a7b3157a5380813dc5cb386c01834d0e"
+  }
+}

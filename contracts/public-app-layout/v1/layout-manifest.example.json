@@ -1,0 +1,29 @@
+{
+  "$schema": "./layout-manifest.schema.json",
+  "appKey": "reference-app",
+  "public": true,
+  "loginRequired": false,
+  "layoutContract": {
+    "id": "public-app-layout/v1",
+    "version": "1.0.0",
+    "sharedCommit": "0000000000000000000000000000000000000000",
+    "vendorDirectory": "vendor/milosapps-layout/v1"
+  },
+  "profile": "focused-task",
+  "sources": {
+    "markup": ["index.html"],
+    "styles": ["app.css"]
+  },
+  "theme": {
+    "page": "#f7f4ee",
+    "surface": "#ffffff",
+    "surfaceStrong": "#f0ece3",
+    "text": "#1f2523",
+    "muted": "#66706c",
+    "border": "#d8ddd9",
+    "accent": "#146b5a",
+    "accentContrast": "#ffffff",
+    "focus": "#8b5cf6"
+  },
+  "productionApproved": false
+}

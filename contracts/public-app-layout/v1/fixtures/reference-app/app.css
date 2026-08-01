@@ -1,0 +1,4 @@
+@import url("./vendor/milosapps-layout/v1/milos-app-layout.css");
+@import url("./vendor/milosapps-layout/v1/milos-app-layout-theme.css");
+
+[data-milos-layout="compact"] { background: var(--milos-layout-page); }

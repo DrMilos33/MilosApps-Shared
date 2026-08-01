@@ -4,6 +4,23 @@
 
 - Keine Änderungen.
 
+## public-app-layout 1.0.0 – 2026-08-01
+
+- Separaten, frameworkneutralen Vertrag `public-app-layout/v1` für kompakte
+  öffentliche No-Login-App-Inhalte ergänzt. `public-app-shell/v2` bleibt
+  unverändert Eigentümer von Header, Footer, Sprache und Portal-Links.
+- Lokale CSS-Primitiven für Intro, Primärarbeit, flache Flows, Panels,
+  Ergebnisse, progressive Offenlegung, Command-Docks und intern reflowende
+  Dialoge hinzugefügt.
+- Verbindliche Dichtebudgets für 1440 × 900 und 390 × 844 sowie Reflow bei
+  360 × 800 und 200 Prozent dokumentiert; 44-Pixel-Ziele, sichtbares Clipping,
+  reduzierte Bewegung und höchstens eine dekorative Kartenebene bleiben Gates.
+- Manifest, app-eigene Theme-CSS, Sync, drei SHA-256-Lockartefakte und portablen
+  Validator hinzugefügt. Kein CDN, keine gemeinsame Runtime und keine
+  Production-Freigabe.
+- `cloud-post` als einzigen Pilot festgelegt. Weitere Apps werden erst nach
+  dessen DEV-Abnahme und ausdrücklichem Nutzerreview geöffnet.
+
 ## 2.0.3 – 2026-08-01
 
 - Shadow-DOM-CSS aus dem JavaScript-Inline-`style` in die vendorte externe

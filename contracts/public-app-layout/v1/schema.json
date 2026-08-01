@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milos-apps.de/contracts/public-app-layout/v1/schema.json",
+  "title": "MilosApps public app layout contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "status",
+    "purpose",
+    "delivery",
+    "eligibleConsumers",
+    "pilotConsumer",
+    "referenceConsumers",
+    "excludedConsumers",
+    "excludedClasses",
+    "relationship",
+    "profiles",
+    "requiredMarkers",
+    "quality",
+    "rollout"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "const": "public-app-layout/v1" },
+    "version": { "const": "1.0.0" },
+    "status": { "enum": ["pilot", "stable", "deprecated"] },
+    "purpose": { "type": "string", "minLength": 1 },
+    "delivery": { "type": "object" },
+    "eligibleConsumers": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+    "pilotConsumer": { "type": "string" },
+    "referenceConsumers": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+    "excludedConsumers": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "excludedClasses": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "relationship": { "type": "object" },
+    "profiles": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+    "requiredMarkers": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+    "quality": { "type": "object" },
+    "rollout": { "type": "object" }
+  }
+}

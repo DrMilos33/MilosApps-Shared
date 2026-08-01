@@ -1,0 +1,11 @@
+[data-milos-layout="compact"][data-milos-app-key="reference-app"] {
+  --milos-layout-page: #f7f4ee;
+  --milos-layout-surface: #ffffff;
+  --milos-layout-surface-strong: #f0ece3;
+  --milos-layout-text: #1f2523;
+  --milos-layout-muted: #66706c;
+  --milos-layout-border: #d8ddd9;
+  --milos-layout-accent: #146b5a;
+  --milos-layout-accent-contrast: #ffffff;
+  --milos-layout-focus: #8b5cf6;
+}

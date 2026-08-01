@@ -22,3 +22,5 @@ jobs:
         run: ./contracts/public-app-shell/v1/validate.ps1
       - name: Validate public app shell v2
         run: node contracts/public-app-shell/v2/tools/validate.mjs
+      - name: Validate public app layout v1
+        run: node contracts/public-app-layout/v1/tools/validate.mjs

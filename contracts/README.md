@@ -25,3 +25,8 @@ Vertragsversion.
   Sprachereignis, Sync, Lock/Prüfsummen und portabler CI-Validator für
   öffentliche Apps ohne Login. Kalender und kontopflichtige Apps sind
   ausgeschlossen.
+- [`public-app-layout/v1`](public-app-layout/v1/README.md): kompakte,
+  frameworkneutrale Hauptinhaltsachse mit Intro-, Arbeits-, Flow-, Ergebnis-,
+  Disclosure- und Dialog-Primitiven, app-eigenem Theme, Dichtebudget und
+  portablem Lock/Validator. Der erste Verbraucher ist ausschließlich
+  Wolkenpost; weitere Apps warten auf Nutzerreview.
