@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "id": "public-app-shell/v2",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "status": "stable",
   "delivery": {
     "format": "dependency-free-es-module-web-component",

@@ -52,7 +52,7 @@ const portableVerifier = await readFile(path.join(root, "dist", "verify.mjs"));
 const readme = await readFile(path.join(root, "README.md"), "utf8");
 
 assert(contract.id === "public-app-shell/v2", "contract id");
-assert(contract.version === "2.0.1", "contract version");
+assert(contract.version === "2.0.2", "contract version");
 assert(contract.status === "stable", "stable contract status");
 assert(schema.properties.id.const === contract.id, "schema contract id");
 assert(schema.properties.version.const === contract.version, "schema contract version");
@@ -72,11 +72,14 @@ assert(contract.shell.icon.format === "inline-svg" && contract.shell.icon.visibl
 assert(contract.shell.controlsMinTargetPx === 44, "44px controls");
 assert(contract.quality.desktop === "1440x900" && contract.quality.mobile === "390x844", "reference viewports");
 assert(contract.quality.zoomPercent === 200, "200 percent zoom");
+assert(appSchema.properties.$schema?.type === "string", "manifest schema permits its own $schema declaration");
+assert(Object.keys(example).every((key) => Object.hasOwn(appSchema.properties, key)), "example contains only schema-declared properties");
 assert(appSchema.properties.shellContract.required.includes("localeModule"), "locale module required by schema");
+assert(appSchema.properties.dev.oneOf.length === 2, "DEV URLs support published or blocked lifecycle");
 assert(example.shellContract.id === contract.id && example.shellContract.version === contract.version, "example pins v2");
 assert(example.public === true && example.loginRequired === false && example.productionApproved === false, "example public DEV boundary");
 assert(release.id === contract.id && release.version === contract.version, "release id/version");
-assert(release.tag === "public-app-shell-v2.0.1", "release tag");
+assert(release.tag === "public-app-shell-v2.0.2", "release tag");
 assert(release.artifacts["dist/milos-app-shell.js"] === `sha256:${createHash("sha256").update(component).digest("hex")}`, "component release hash");
 assert(release.artifacts["dist/verify.mjs"] === `sha256:${createHash("sha256").update(portableVerifier).digest("hex")}`, "verifier release hash");
 
@@ -95,6 +98,11 @@ for (const marker of [
 ]) {
   assert(component.includes(marker), `component marker: ${marker}`);
 }
+assert(component.includes("body[data-milos-app-shell-page] {\n    min-width: 0;"), "page can reflow below 20rem");
+assert(!component.includes("min-width: 20rem"), "fixed 20rem page minimum is forbidden");
+assert(component.includes("--milos-shell-icon-size: 38px"), "icon stays at the 38px contract size under text zoom");
+assert(component.includes(".brand { width: 100%; max-width: 100%; flex-wrap: wrap; }"), "narrow brand row can wrap");
+assert(!component.includes("--milos-shell-icon-size: 2.375rem"), "icon must not double with root font zoom");
 assert(readme.includes("kein CDN") && readme.includes("keine gemeinsame Laufzeit"), "README lifecycle boundary");
 
 const syntax = spawnSync(process.execPath, ["--check", path.join(root, "dist", "milos-app-shell.js")], { encoding: "utf8" });
@@ -158,6 +166,29 @@ try {
     () => syncShell({ "app-root": unknownRoot, manifest: "milos-app.json", "source-commit": "1".repeat(40) }),
     /not an approved public-shell consumer/,
     "unknown consumer"
+  );
+
+  const blockedRoot = path.join(tempRoot, "blocked");
+  await cp(fixtureRoot, blockedRoot, { recursive: true });
+  const blockedManifestPath = path.join(blockedRoot, "milos-app.json");
+  const blockedManifest = JSON.parse(await readFile(blockedManifestPath, "utf8"));
+  blockedManifest.dev.url = null;
+  blockedManifest.dev.healthUrl = null;
+  await writeFile(blockedManifestPath, `${JSON.stringify(blockedManifest, null, 2)}\n`, "utf8");
+  await syncShell({ "app-root": blockedRoot, manifest: "milos-app.json", "source-commit": zeroCommit, fixture: true });
+  const blockedResult = await verifyApp(blockedRoot, "milos-app.json");
+  assert(blockedResult.devPublished === false, "blocked DEV lifecycle verifies without invented URLs");
+
+  const partialDevRoot = path.join(tempRoot, "partial-dev");
+  await cp(fixtureRoot, partialDevRoot, { recursive: true });
+  const partialDevManifestPath = path.join(partialDevRoot, "milos-app.json");
+  const partialDevManifest = JSON.parse(await readFile(partialDevManifestPath, "utf8"));
+  partialDevManifest.dev.healthUrl = null;
+  await writeFile(partialDevManifestPath, `${JSON.stringify(partialDevManifest, null, 2)}\n`, "utf8");
+  await expectFailure(
+    () => syncShell({ "app-root": partialDevRoot, manifest: "milos-app.json", "source-commit": zeroCommit, fixture: true }),
+    /must both be HTTPS or both be null/,
+    "partial DEV URL pair"
   );
 } finally {
   await rm(tempRoot, { recursive: true, force: true });

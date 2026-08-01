@@ -6,7 +6,7 @@
   "loginRequired": false,
   "shellContract": {
     "id": "public-app-shell/v2",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "sharedCommit": "0000000000000000000000000000000000000000",
     "vendorDirectory": "vendor/milosapps-shell/v2",
     "entryHtml": "index.html",

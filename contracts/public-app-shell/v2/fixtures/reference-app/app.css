@@ -8,7 +8,9 @@ main {
 }
 
 .hero {
+  min-width: 0;
   max-width: 48rem;
+  overflow-wrap: anywhere;
 }
 
 .eyebrow {

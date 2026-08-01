@@ -1,6 +1,6 @@
 # Public App Shell v2
 
-- Version: `2.0.1`
+- Version: `2.0.2`
 - Contract-ID: `public-app-shell/v2`
 - Status: bereit zur gepinnten Übernahme
 - Kalender und kontopflichtige Apps: ausdrücklich ausgeschlossen
@@ -106,6 +106,8 @@ Titel, H1, Status, Fehler, Dialoge, Validierung und zugängliche Namen.
 - Einheitliche Inhaltsachse bis `72rem`.
 - App-eigenes Inline-SVG in 38-Pixel-Fassung, danach `MilosApps` und nur in
   DEV ein dezentes `DEV`.
+- Die 38-Pixel-Iconfassung vergrößert sich bei Textzoom nicht künstlich; auf
+  schmalen Viewports darf die Markenreihe kontrolliert umbrechen.
 - Sprachbuttons mit eigenen inline SVG-Flaggen Deutschland/UK und sichtbaren
   Labels `DE`/`EN`; Flaggen stehen nie allein.
 - `Alle Apps`/`All apps` mit standardisiertem Outline-Pfeil.
@@ -114,6 +116,8 @@ Titel, H1, Status, Fehler, Dialoge, Validierung und zugängliche Namen.
 - Mindestens 44 Pixel Touchziel, sichtbarer Fokus, Reduced Motion, mobiler
   Wrap und kein Raum unterhalb des Footers.
 - Hostlayout: `min-height: 100dvh; grid-template-rows: auto 1fr auto`.
+- Keine feste Mindestbreite auf der Shell-Seite; der Rahmen muss auch bei
+  200 Prozent Zoom auf schmalen Viewports auf die verfügbare Breite reflowen.
 
 ## Umgebungen
 
@@ -128,6 +132,12 @@ Titel, H1, Status, Fehler, Dialoge, Validierung und zugängliche Namen.
 Shared-Release oder eine erfolgreiche DEV-Migration erteilt diese Freigabe
 nicht.
 
+Bereits veröffentlichte Verbraucher tragen in `dev.url` und `dev.healthUrl`
+zwei echte HTTPS-Adressen ein. Noch nicht veröffentlichte oder extern
+blockierte Verbraucher setzen beide Felder gemeinsam auf `null`; eine einzelne
+URL oder ein erfundener Platzhalter ist unzulässig. Die Portalroute bleibt bis
+zum verifizierten DEV-Handoff inaktiv.
+
 ## Pflichtprüfungen
 
 - Manifest, Lock und Artefakt-SHA-256 stimmen überein.
@@ -140,6 +150,10 @@ nicht.
 - 1440 × 900, 390 × 844 und 200 Prozent Zoom ohne Überlauf.
 - Direkter No-Login-Aufruf ohne Portal-Cookie.
 - App-eigener Healthcheck, Source-/Artefakt-SHA und Rollback.
+
+Die Referenz-App kann den reproduzierbaren Textzoomfall ohne Browser-
+Sonderkonfiguration unter `?textZoom=200` darstellen. Die 360-mal-800-Prüfung
+misst dabei insbesondere Body, Header, Markenreihe, Navigation und Footer.
 
 ## Kompatibilität und Rollback
 

@@ -28,7 +28,7 @@
       "required": ["id", "version", "sharedCommit", "vendorDirectory", "entryHtml", "localeModule"],
       "properties": {
         "id": { "const": "public-app-shell/v2" },
-        "version": { "const": "2.0.1" },
+        "version": { "const": "2.0.2" },
         "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" },
         "entryHtml": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.html$" },
@@ -71,9 +71,23 @@
       "additionalProperties": false,
       "required": ["url", "healthUrl"],
       "properties": {
-        "url": { "type": "string", "pattern": "^https://" },
-        "healthUrl": { "type": "string", "pattern": "^https://" }
-      }
+        "url": { "type": ["string", "null"], "pattern": "^https://" },
+        "healthUrl": { "type": ["string", "null"], "pattern": "^https://" }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "url": { "type": "string", "pattern": "^https://" },
+            "healthUrl": { "type": "string", "pattern": "^https://" }
+          }
+        },
+        {
+          "properties": {
+            "url": { "type": "null" },
+            "healthUrl": { "type": "null" }
+          }
+        }
+      ]
     },
     "productionApproved": { "type": "boolean" }
   },

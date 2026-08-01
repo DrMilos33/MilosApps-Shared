@@ -4,6 +4,20 @@
 
 - Keine Änderungen.
 
+## 2.0.2 – 2026-08-01
+
+- Die globale `20rem`-Mindestbreite der Shell-Seite entfernt. Dadurch kann die
+  vendorte Shell auch auf schmalen Viewports bei 200 Prozent Zoom ohne
+  horizontalen Überlauf auf die verfügbare Breite zurückfließen.
+- Die dekorative Icon-Fassung bleibt bei 38 CSS-Pixeln, während die Markenreihe
+  auf schmalen Viewports kontrolliert umbrechen darf. Header-Navigation und
+  Sprachgruppe erhalten explizite Schrumpfgrenzen gegen Min-Content-Überlauf.
+- Der Contract-Validator lehnt eine erneute feste Body-Mindestbreite ab und
+  prüft die reflow-fähige `min-width: 0`-Grenze.
+- Noch nicht veröffentlichte oder extern blockierte Apps dürfen `dev.url` und
+  `dev.healthUrl` gemeinsam auf `null` setzen. Sync und portabler Validator
+  akzeptieren nur das ehrliche Paar „beide HTTPS“ oder „beide null“.
+
 ## 2.0.1 – 2026-08-01
 
 - Ausführbare JavaScript-/ES-Modul-Artefakte werden per `.gitattributes`

@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-shell/v2";
-const VERSION = "2.0.1";
+const VERSION = "2.0.2";
 const CONSUMERS = new Set(["noodle-calculator", "sky", "cloud-post", "somewhere-now", "gravity-loop", "waste-guide", "daylight"]);
 
 function fail(message) {
@@ -55,6 +55,9 @@ export async function verifyApp(appRootInput, manifestInput) {
   if (!/^\/[a-z0-9][a-z0-9/-]*$/.test(manifest.integration?.portalRoute || "")) fail("valid portalRoute is required");
   if (manifest.environment === "dev" && manifest.productionApproved !== false) fail("DEV must keep Production false");
   if (manifest.environment === "production" && manifest.productionApproved !== true) fail("Production requires explicit approval");
+  const hasPublishedDev = /^https:\/\//.test(manifest.dev?.url || "") && /^https:\/\//.test(manifest.dev?.healthUrl || "");
+  const hasBlockedDev = manifest.dev?.url === null && manifest.dev?.healthUrl === null;
+  if (!hasPublishedDev && !hasBlockedDev) fail("dev.url and dev.healthUrl must both be HTTPS or both be null");
 
   const vendorRoot = inside(appRoot, path.resolve(appRoot, manifest.shellContract.vendorDirectory), "vendor directory");
   const lockPath = path.join(vendorRoot, "shell-lock.json");
@@ -87,6 +90,7 @@ export async function verifyApp(appRootInput, manifestInput) {
   return {
     appKey: manifest.appKey,
     environment: manifest.environment,
+    devPublished: hasPublishedDev,
     sharedCommit: manifest.shellContract.sharedCommit,
     vendorRoot
   };

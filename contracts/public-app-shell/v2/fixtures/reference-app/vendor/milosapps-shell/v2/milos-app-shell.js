@@ -1,5 +1,5 @@
 const CONTRACT_ID = "public-app-shell/v2";
-const CONTRACT_VERSION = "2.0.1";
+const CONTRACT_VERSION = "2.0.2";
 const ELEMENT_NAME = "milos-app-shell";
 const LOCALE_EVENT = "milosapps:localechange";
 
@@ -51,7 +51,7 @@ const THEME_PROPERTIES = Object.freeze({
 
 const GLOBAL_STYLE = `
   body[data-milos-app-shell-page] {
-    min-width: 20rem;
+    min-width: 0;
     min-height: 100%;
     margin: 0;
   }
@@ -69,8 +69,8 @@ const COMPONENT_STYLE = `
     --milos-shell-content-max: 72rem;
     --milos-shell-gutter: clamp(1rem, 3vw, 2rem);
     --milos-shell-radius: 0.8rem;
-    --milos-shell-target: 2.75rem;
-    --milos-shell-icon-size: 2.375rem;
+    --milos-shell-target: 44px;
+    --milos-shell-icon-size: 38px;
     --milos-shell-transition: 160ms ease;
     min-width: 0;
     min-height: 100dvh;
@@ -126,6 +126,7 @@ const COMPONENT_STYLE = `
 
   .brand {
     min-width: 0;
+    max-width: 100%;
     min-height: var(--milos-shell-target);
     display: inline-flex;
     align-items: center;
@@ -166,6 +167,8 @@ const COMPONENT_STYLE = `
   }
 
   nav, .languages {
+    min-width: 0;
+    max-width: 100%;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -176,6 +179,7 @@ const COMPONENT_STYLE = `
 
   .control {
     min-width: var(--milos-shell-target);
+    max-width: 100%;
     min-height: var(--milos-shell-target);
     display: inline-flex;
     align-items: center;
@@ -255,7 +259,8 @@ const COMPONENT_STYLE = `
 
   @media (max-width: 35rem) {
     .header-inner { align-items: flex-start; flex-direction: column; }
-    nav { width: 100%; justify-content: space-between; }
+    .brand { width: 100%; max-width: 100%; flex-wrap: wrap; }
+    nav { width: 100%; min-width: 0; justify-content: space-between; }
     .footer-inner { align-items: flex-start; flex-direction: column; gap: 0; }
     .footer-nav { justify-content: flex-start; }
   }
