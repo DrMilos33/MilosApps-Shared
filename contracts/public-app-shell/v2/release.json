@@ -1,0 +1,9 @@
+{
+  "id": "public-app-shell/v2",
+  "version": "2.0.0",
+  "tag": "public-app-shell-v2.0.0",
+  "artifacts": {
+    "dist/milos-app-shell.js": "sha256:2a5de7f6f1edf53a33d343af1bb921a9d24e569a0398c4470df14e23c17a8bf0",
+    "dist/verify.mjs": "sha256:a764ebaada450ab34d0bace18aa477c8efef65f48b39a67f643705f95f110956"
+  }
+}

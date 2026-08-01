@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milos-apps.de/contracts/public-app-shell/v2/app-manifest.schema.json",
+  "title": "MilosApps public app manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "appKey",
+    "ownerTask",
+    "public",
+    "loginRequired",
+    "shellContract",
+    "environment",
+    "description",
+    "integration",
+    "dev",
+    "productionApproved"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "appKey": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "ownerTask": { "type": "string", "minLength": 1 },
+    "public": { "const": true },
+    "loginRequired": { "const": false },
+    "shellContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "sharedCommit", "vendorDirectory", "entryHtml", "localeModule"],
+      "properties": {
+        "id": { "const": "public-app-shell/v2" },
+        "version": { "const": "2.0.0" },
+        "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" },
+        "entryHtml": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.html$" },
+        "localeModule": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.(?:js|mjs|ts|tsx)$" }
+      }
+    },
+    "environment": { "enum": ["dev", "production"] },
+    "description": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["de", "en"],
+      "properties": {
+        "de": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "en": { "type": "string", "minLength": 1, "maxLength": 160 }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "accent": { "type": "string", "minLength": 1 },
+        "accentContrast": { "type": "string", "minLength": 1 },
+        "surface": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "muted": { "type": "string", "minLength": 1 },
+        "border": { "type": "string", "minLength": 1 },
+        "focus": { "type": "string", "minLength": 1 }
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["portalRoute"],
+      "properties": {
+        "portalRoute": { "type": "string", "pattern": "^/[a-z0-9][a-z0-9/-]*$" }
+      }
+    },
+    "dev": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "healthUrl"],
+      "properties": {
+        "url": { "type": "string", "pattern": "^https://" },
+        "healthUrl": { "type": "string", "pattern": "^https://" }
+      }
+    },
+    "productionApproved": { "type": "boolean" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "environment": { "const": "production" } } },
+      "then": { "properties": { "productionApproved": { "const": true } } }
+    },
+    {
+      "if": { "properties": { "environment": { "const": "dev" } } },
+      "then": { "properties": { "productionApproved": { "const": false } } }
+    }
+  ]
+}

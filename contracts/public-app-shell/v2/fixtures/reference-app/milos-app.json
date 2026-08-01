@@ -1,0 +1,37 @@
+{
+  "$schema": "../../app-manifest.schema.json",
+  "appKey": "reference-app",
+  "ownerTask": "MilosApps – Struktur & Architektur",
+  "public": true,
+  "loginRequired": false,
+  "shellContract": {
+    "id": "public-app-shell/v2",
+    "version": "2.0.0",
+    "sharedCommit": "0000000000000000000000000000000000000000",
+    "vendorDirectory": "vendor/milosapps-shell/v2",
+    "entryHtml": "index.html",
+    "localeModule": "app.js"
+  },
+  "environment": "dev",
+  "description": {
+    "de": "Eine kompakte Referenz für den gemeinsamen App-Rahmen.",
+    "en": "A compact reference for the shared app shell."
+  },
+  "theme": {
+    "accent": "#3454d1",
+    "accentContrast": "#ffffff",
+    "surface": "#fbfcff",
+    "text": "#172033",
+    "muted": "#5f6b7a",
+    "border": "#d8deea",
+    "focus": "#c44200"
+  },
+  "integration": {
+    "portalRoute": "/apps/reference-app"
+  },
+  "dev": {
+    "url": "https://reference.invalid/",
+    "healthUrl": "https://reference.invalid/health.json"
+  },
+  "productionApproved": false
+}

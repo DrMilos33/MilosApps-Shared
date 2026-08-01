@@ -1,0 +1,37 @@
+{
+  "$schema": "./app-manifest.schema.json",
+  "appKey": "example-app",
+  "ownerTask": "MilosApps – Beispiel-App",
+  "public": true,
+  "loginRequired": false,
+  "shellContract": {
+    "id": "public-app-shell/v2",
+    "version": "2.0.0",
+    "sharedCommit": "0000000000000000000000000000000000000000",
+    "vendorDirectory": "vendor/milosapps-shell/v2",
+    "entryHtml": "index.html",
+    "localeModule": "app.js"
+  },
+  "environment": "dev",
+  "description": {
+    "de": "Ein kurzer, app-spezifischer Abschlusstext.",
+    "en": "A short, app-specific closing note."
+  },
+  "theme": {
+    "accent": "#315bdb",
+    "accentContrast": "#ffffff",
+    "surface": "#ffffff",
+    "text": "#172033",
+    "muted": "#5f6b7a",
+    "border": "#d7dce5",
+    "focus": "#cf4f00"
+  },
+  "integration": {
+    "portalRoute": "/apps/example-app"
+  },
+  "dev": {
+    "url": "https://example.invalid/",
+    "healthUrl": "https://example.invalid/health.json"
+  },
+  "productionApproved": false
+}

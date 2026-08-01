@@ -1,0 +1,103 @@
+{
+  "$schema": "./schema.json",
+  "id": "public-app-shell/v2",
+  "version": "2.0.0",
+  "status": "stable",
+  "delivery": {
+    "format": "dependency-free-es-module-web-component",
+    "mode": "pinned-build-time-vendor",
+    "cdnAllowed": false,
+    "crossRepositoryRuntimeImportAllowed": false,
+    "lockRequired": true,
+    "sha256Required": true
+  },
+  "consumers": [
+    "noodle-calculator",
+    "sky",
+    "cloud-post",
+    "somewhere-now",
+    "gravity-loop",
+    "waste-guide",
+    "daylight"
+  ],
+  "excludedClasses": [
+    "login-required"
+  ],
+  "excludedConsumers": [
+    "calendar"
+  ],
+  "configuration": {
+    "file": "milos-app.json",
+    "required": [
+      "appKey",
+      "ownerTask",
+      "public",
+      "loginRequired",
+      "shellContract",
+      "environment",
+      "description",
+      "integration",
+      "dev",
+      "productionApproved"
+    ]
+  },
+  "languages": {
+    "required": [
+      "de",
+      "en"
+    ],
+    "storageKeyPattern": "milosapps.<app-key>.language",
+    "event": "milosapps:localechange",
+    "fallback": "de",
+    "appScope": "all-visible-ui"
+  },
+  "environments": {
+    "dev": {
+      "badge": "DEV",
+      "links": {
+        "home": "https://dev.milos-apps.de/",
+        "apps": "https://dev.milos-apps.de/apps",
+        "legal": "https://dev.milos-apps.de/impressum",
+        "privacy": "https://dev.milos-apps.de/datenschutz"
+      }
+    },
+    "production": {
+      "badge": null,
+      "requiresProductionApproved": true,
+      "links": {
+        "home": "https://milos-apps.de/",
+        "apps": "https://milos-apps.de/apps",
+        "legal": "https://milos-apps.de/impressum",
+        "privacy": "https://milos-apps.de/datenschutz"
+      }
+    }
+  },
+  "shell": {
+    "element": "milos-app-shell",
+    "slots": [
+      "app-icon",
+      "main"
+    ],
+    "icon": {
+      "ownership": "app",
+      "format": "inline-svg",
+      "visibleSizePx": 38
+    },
+    "contentMax": "72rem",
+    "layout": "100dvh-grid-auto-1fr-auto",
+    "controlsMinTargetPx": 44,
+    "headerPosition": "normal-flow",
+    "sticky": "app-specific-justification-only"
+  },
+  "quality": {
+    "desktop": "1440x900",
+    "mobile": "390x844",
+    "zoomPercent": 200,
+    "horizontalOverflowAllowed": false,
+    "reducedMotionRequired": true,
+    "noLoginRequired": true
+  },
+  "runtimeDependency": false,
+  "databaseDependency": false,
+  "productionApproved": false
+}

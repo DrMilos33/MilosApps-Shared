@@ -1,0 +1,24 @@
+name: Validate shared contracts
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate public app shell v1
+        shell: pwsh
+        run: ./contracts/public-app-shell/v1/validate.ps1
+      - name: Validate public app shell v2
+        run: node contracts/public-app-shell/v2/tools/validate.mjs

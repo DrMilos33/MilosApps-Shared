@@ -20,3 +20,8 @@ Vertragsversion.
   umgebungsabhängige Portalnavigation, kompakter Footer, Tokens,
   Referenzmarkup und Mindesttestmatrix für öffentliche Apps. Der Kalender ist
   nicht Teil dieses Vertrags.
+- [`public-app-shell/v2`](public-app-shell/v2/README.md): verpflichtendes
+  App-Manifest, gepinntes lokales ES-Modul/Web-Component, Inline-Flaggen,
+  Sprachereignis, Sync, Lock/Prüfsummen und portabler CI-Validator für
+  öffentliche Apps ohne Login. Kalender und kontopflichtige Apps sind
+  ausgeschlossen.
