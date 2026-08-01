@@ -28,7 +28,7 @@
       "required": ["id", "version", "sharedCommit", "vendorDirectory", "entryHtml", "localeModule"],
       "properties": {
         "id": { "const": "public-app-shell/v2" },
-        "version": { "const": "2.0.0" },
+        "version": { "const": "2.0.1" },
         "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" },
         "entryHtml": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.html$" },

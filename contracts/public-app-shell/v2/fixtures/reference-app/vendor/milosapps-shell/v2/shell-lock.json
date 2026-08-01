@@ -1,13 +1,13 @@
 {
   "contract": "public-app-shell/v2",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "sharedCommit": "0000000000000000000000000000000000000000",
   "appKey": "reference-app",
   "manifest": "milos-app.json",
   "vendorDirectory": "vendor/milosapps-shell/v2",
   "artifacts": {
-    "milos-app-shell.js": "sha256:2a5de7f6f1edf53a33d343af1bb921a9d24e569a0398c4470df14e23c17a8bf0",
+    "milos-app-shell.js": "sha256:9ca9caa1fdbac140edba20f7a6ef348ba775bdc7a12814a6a45e97d7a069a1a4",
     "bootstrap.js": "sha256:981f047cbc57ba19c9e9aca9127bbe6bdf35a96757e5dcbafe8f75112d112cb2",
-    "verify.mjs": "sha256:a764ebaada450ab34d0bace18aa477c8efef65f48b39a67f643705f95f110956"
+    "verify.mjs": "sha256:646849800d30b8e4d21e4ae9c5988280ee9a1520dd28c840c2e114142d79321f"
   }
 }

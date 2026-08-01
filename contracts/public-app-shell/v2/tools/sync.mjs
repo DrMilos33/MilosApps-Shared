@@ -3,7 +3,7 @@ import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "2.0.0";
+const VERSION = "2.0.1";
 const ID = "public-app-shell/v2";
 const CONSUMERS = new Set(["noodle-calculator", "sky", "cloud-post", "somewhere-now", "gravity-loop", "waste-guide", "daylight"]);
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));

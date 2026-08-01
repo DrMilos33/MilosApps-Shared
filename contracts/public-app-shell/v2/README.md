@@ -1,6 +1,6 @@
 # Public App Shell v2
 
-- Version: `2.0.0`
+- Version: `2.0.1`
 - Contract-ID: `public-app-shell/v2`
 - Status: bereit zur gepinnten Übernahme
 - Kalender und kontopflichtige Apps: ausdrücklich ausgeschlossen

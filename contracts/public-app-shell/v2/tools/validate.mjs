@@ -52,7 +52,7 @@ const portableVerifier = await readFile(path.join(root, "dist", "verify.mjs"));
 const readme = await readFile(path.join(root, "README.md"), "utf8");
 
 assert(contract.id === "public-app-shell/v2", "contract id");
-assert(contract.version === "2.0.0", "contract version");
+assert(contract.version === "2.0.1", "contract version");
 assert(contract.status === "stable", "stable contract status");
 assert(schema.properties.id.const === contract.id, "schema contract id");
 assert(schema.properties.version.const === contract.version, "schema contract version");
@@ -76,7 +76,7 @@ assert(appSchema.properties.shellContract.required.includes("localeModule"), "lo
 assert(example.shellContract.id === contract.id && example.shellContract.version === contract.version, "example pins v2");
 assert(example.public === true && example.loginRequired === false && example.productionApproved === false, "example public DEV boundary");
 assert(release.id === contract.id && release.version === contract.version, "release id/version");
-assert(release.tag === "public-app-shell-v2.0.0", "release tag");
+assert(release.tag === "public-app-shell-v2.0.1", "release tag");
 assert(release.artifacts["dist/milos-app-shell.js"] === `sha256:${createHash("sha256").update(component).digest("hex")}`, "component release hash");
 assert(release.artifacts["dist/verify.mjs"] === `sha256:${createHash("sha256").update(portableVerifier).digest("hex")}`, "verifier release hash");
 

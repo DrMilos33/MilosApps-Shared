@@ -4,6 +4,15 @@
 
 - Keine Änderungen.
 
+## 2.0.1 – 2026-08-01
+
+- Ausführbare JavaScript-/ES-Modul-Artefakte werden per `.gitattributes`
+  plattformübergreifend mit LF ausgecheckt, sodass die veröffentlichten
+  SHA-256-Prüfsummen unter Windows und Linux identisch bleiben.
+- Vertrag, Manifest, Sync, Validator und Referenzlock auf den unveränderbaren
+  Patch-Tag `public-app-shell-v2.0.1` angehoben. Der bereits veröffentlichte
+  Tag `v2.0.0` wird nicht verschoben.
+
 ## 2.0.0 – 2026-08-01
 
 - `public-app-shell/v2` als dependency-freies ES-Modul/Web-Component mit

@@ -1,5 +1,5 @@
 const CONTRACT_ID = "public-app-shell/v2";
-const CONTRACT_VERSION = "2.0.0";
+const CONTRACT_VERSION = "2.0.1";
 const ELEMENT_NAME = "milos-app-shell";
 const LOCALE_EVENT = "milosapps:localechange";
 
