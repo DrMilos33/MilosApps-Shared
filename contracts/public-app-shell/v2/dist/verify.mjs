@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-shell/v2";
-const VERSION = "2.0.2";
+const VERSION = "2.0.3";
 const CONSUMERS = new Set(["noodle-calculator", "sky", "cloud-post", "somewhere-now", "gravity-loop", "waste-guide", "daylight"]);
 
 function fail(message) {
@@ -66,7 +66,13 @@ export async function verifyApp(appRootInput, manifestInput) {
   if (lock.sharedCommit !== manifest.shellContract.sharedCommit) fail("lock/shared commit mismatch");
   if (lock.appKey !== manifest.appKey) fail("lock/app key mismatch");
 
-  for (const artifact of ["milos-app-shell.js", "bootstrap.js", "verify.mjs"]) {
+  for (const artifact of [
+    "milos-app-shell.js",
+    "milos-app-shell.css",
+    "bootstrap.js",
+    "milos-app-shell-theme.css",
+    "verify.mjs"
+  ]) {
     const content = await requiredFile(path.join(vendorRoot, artifact), artifact);
     if (sha256(content) !== lock.artifacts?.[artifact]) fail(`${artifact} checksum mismatch`);
   }
@@ -86,6 +92,13 @@ export async function verifyApp(appRootInput, manifestInput) {
   if (!localeModule.includes("milosapps:localechange")) fail("app locale module must consume the shell locale event");
   if (!/\bde\b/.test(localeModule) || !/\ben\b/.test(localeModule)) fail("app locale module must define DE and EN");
   if (!localeModule.includes("document.documentElement.lang")) fail("app locale module must apply the initial document locale");
+
+  const component = (await requiredFile(path.join(vendorRoot, "milos-app-shell.js"), "component module")).toString("utf8");
+  const bootstrap = (await requiredFile(path.join(vendorRoot, "bootstrap.js"), "bootstrap module")).toString("utf8");
+  if (!component.includes('new URL("./milos-app-shell.css", import.meta.url)')) fail("component must load its same-origin external stylesheet");
+  if (component.includes("<style>") || component.includes("style.setProperty")) fail("component must not inject inline styles");
+  if (!bootstrap.includes('new URL("./milos-app-shell-theme.css", import.meta.url)')) fail("bootstrap must load the same-origin generated theme stylesheet");
+  if (bootstrap.includes("style.setProperty") || bootstrap.includes("style.textContent")) fail("bootstrap must not inject inline styles");
 
   return {
     appKey: manifest.appKey,

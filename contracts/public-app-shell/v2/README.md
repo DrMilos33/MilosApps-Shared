@@ -1,6 +1,6 @@
 # Public App Shell v2
 
-- Version: `2.0.2`
+- Version: `2.0.3`
 - Contract-ID: `public-app-shell/v2`
 - Status: bereit zur gepinnten Übernahme
 - Kalender und kontopflichtige Apps: ausdrücklich ausgeschlossen
@@ -35,10 +35,12 @@ Verbraucher:
 - `app-manifest.schema.json`: verpflichtendes App-/Shell-/Portalmanifest.
 - `app-manifest.example.json`: vollständig ausgefülltes DEV-Beispiel.
 - `dist/milos-app-shell.js`: dependency-freie Web-Component inklusive Markup,
-  CSS, Flaggen, Pfeil, Persistenz und Linkbildung.
+  Flaggen, Pfeil, Persistenz und Linkbildung.
+- `dist/milos-app-shell.css`: CSP-sichere externe Shadow-DOM-Styles.
 - `dist/verify.mjs`: portabler App-Validator, der beim Sync mitkopiert wird.
 - `tools/sync.mjs`: vendort die feste Distribution und schreibt
-  `shell-lock.json` mit SHA-256-Prüfsummen.
+  `shell-lock.json` mit SHA-256-Prüfsummen sowie eine app-spezifische externe
+  `milos-app-shell-theme.css`.
 - `tools/validate.mjs`: Contract-, Distributions-, Fixture- und Negativtests.
 - `fixtures/reference-app`: sichtbare vollständige Referenzintegration.
 
@@ -78,6 +80,26 @@ Das Einstiegsmuster ist frameworkneutral:
   <main id="main" slot="main">…</main>
 </milos-app-shell>
 ```
+
+Die Shell injiziert keine Inline-Styles. Komponenten-CSS und app-spezifische
+Theme-Tokens werden als vendorte Same-Origin-Stylesheets geladen. Der
+Pflichttest mit `default-src 'self'; script-src 'self'; style-src 'self'` muss
+ohne Nonce, Hash oder `unsafe-inline` bestehen.
+
+Runtime-Dateien im gemeinsamen Vendorordner:
+
+| Datei | Relative URL | Content-Type |
+|---|---|---|
+| `bootstrap.js` | `./bootstrap.js` | `text/javascript; charset=utf-8` |
+| `milos-app-shell.js` | `./milos-app-shell.js` | `text/javascript; charset=utf-8` |
+| `milos-app-shell.css` | `./milos-app-shell.css` | `text/css; charset=utf-8` |
+| `milos-app-shell-theme.css` | `./milos-app-shell-theme.css` | `text/css; charset=utf-8` |
+
+`bootstrap.js` importiert das Komponentenmodul und lädt die Theme-CSS relativ
+zu seiner eigenen Modul-URL. Das Komponentenmodul lädt die Shadow-CSS relativ
+zu `import.meta.url`. Projektpfad-Hosting benötigt deshalb keine absolute
+Root-URL. `verify.mjs` und `shell-lock.json` sind lokale Nachweisdateien, keine
+Browser-Runtime-Endpunkte.
 
 Das Inline-SVG bleibt App-Eigentum. Die Shell besitzt Position, 38-Pixel-
 Fassung und Zentrierung. Externe Icon-URLs sind nicht zulässig.

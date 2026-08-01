@@ -48,11 +48,12 @@ const appSchema = await json("app-manifest.schema.json");
 const example = await json("app-manifest.example.json");
 const release = await json("release.json");
 const component = await readFile(path.join(root, "dist", "milos-app-shell.js"), "utf8");
+const componentStyles = await readFile(path.join(root, "dist", "milos-app-shell.css"));
 const portableVerifier = await readFile(path.join(root, "dist", "verify.mjs"));
 const readme = await readFile(path.join(root, "README.md"), "utf8");
 
 assert(contract.id === "public-app-shell/v2", "contract id");
-assert(contract.version === "2.0.2", "contract version");
+assert(contract.version === "2.0.3", "contract version");
 assert(contract.status === "stable", "stable contract status");
 assert(schema.properties.id.const === contract.id, "schema contract id");
 assert(schema.properties.version.const === contract.version, "schema contract version");
@@ -62,6 +63,14 @@ assert(contract.excludedClasses.includes("login-required"), "login-required excl
 assert(contract.delivery.cdnAllowed === false, "CDN forbidden");
 assert(contract.delivery.crossRepositoryRuntimeImportAllowed === false, "cross-repository runtime forbidden");
 assert(contract.delivery.lockRequired === true && contract.delivery.sha256Required === true, "lock and sha required");
+assert(contract.delivery.inlineStyleInjectionAllowed === false, "inline style injection forbidden");
+assert(contract.delivery.strictStyleSourceSelfSupported === true, "strict style-src self required");
+assert(JSON.stringify(contract.delivery.runtimeAssets.map(({ file, relativeUrl, contentType }) => ({ file, relativeUrl, contentType }))) === JSON.stringify([
+  { file: "bootstrap.js", relativeUrl: "./bootstrap.js", contentType: "text/javascript; charset=utf-8" },
+  { file: "milos-app-shell.js", relativeUrl: "./milos-app-shell.js", contentType: "text/javascript; charset=utf-8" },
+  { file: "milos-app-shell.css", relativeUrl: "./milos-app-shell.css", contentType: "text/css; charset=utf-8" },
+  { file: "milos-app-shell-theme.css", relativeUrl: "./milos-app-shell-theme.css", contentType: "text/css; charset=utf-8" }
+]), "exact CSP-safe runtime assets and content types");
 assert(contract.runtimeDependency === false && contract.databaseDependency === false, "no shared runtime or database");
 assert(contract.productionApproved === false, "Production remains unapproved");
 assert(contract.languages.required.includes("de") && contract.languages.required.includes("en"), "DE and EN required");
@@ -72,6 +81,7 @@ assert(contract.shell.icon.format === "inline-svg" && contract.shell.icon.visibl
 assert(contract.shell.controlsMinTargetPx === 44, "44px controls");
 assert(contract.quality.desktop === "1440x900" && contract.quality.mobile === "390x844", "reference viewports");
 assert(contract.quality.zoomPercent === 200, "200 percent zoom");
+assert(contract.quality.strictCsp.includes("style-src 'self'"), "strict CSP quality gate");
 assert(appSchema.properties.$schema?.type === "string", "manifest schema permits its own $schema declaration");
 assert(Object.keys(example).every((key) => Object.hasOwn(appSchema.properties, key)), "example contains only schema-declared properties");
 assert(appSchema.properties.shellContract.required.includes("localeModule"), "locale module required by schema");
@@ -79,30 +89,36 @@ assert(appSchema.properties.dev.oneOf.length === 2, "DEV URLs support published 
 assert(example.shellContract.id === contract.id && example.shellContract.version === contract.version, "example pins v2");
 assert(example.public === true && example.loginRequired === false && example.productionApproved === false, "example public DEV boundary");
 assert(release.id === contract.id && release.version === contract.version, "release id/version");
-assert(release.tag === "public-app-shell-v2.0.2", "release tag");
+assert(release.tag === "public-app-shell-v2.0.3", "release tag");
 assert(release.artifacts["dist/milos-app-shell.js"] === `sha256:${createHash("sha256").update(component).digest("hex")}`, "component release hash");
+assert(release.artifacts["dist/milos-app-shell.css"] === `sha256:${createHash("sha256").update(componentStyles).digest("hex")}`, "component stylesheet release hash");
 assert(release.artifacts["dist/verify.mjs"] === `sha256:${createHash("sha256").update(portableVerifier).digest("hex")}`, "verifier release hash");
 
 for (const marker of [
   "customElements.define",
   "milosapps:localechange",
-  "grid-template-rows: auto minmax(0, 1fr) auto",
-  "min-height: 100dvh",
   "slot name=\"app-icon\"",
   "slot name=\"main\"",
   "germanFlag()",
   "All apps",
-  "prefers-reduced-motion: reduce",
   "https://dev.milos-apps.de/apps",
   "https://milos-apps.de/apps"
 ]) {
   assert(component.includes(marker), `component marker: ${marker}`);
 }
-assert(component.includes("body[data-milos-app-shell-page] {\n    min-width: 0;"), "page can reflow below 20rem");
-assert(!component.includes("min-width: 20rem"), "fixed 20rem page minimum is forbidden");
-assert(component.includes("--milos-shell-icon-size: 38px"), "icon stays at the 38px contract size under text zoom");
-assert(component.includes(".brand { width: 100%; max-width: 100%; flex-wrap: wrap; }"), "narrow brand row can wrap");
-assert(!component.includes("--milos-shell-icon-size: 2.375rem"), "icon must not double with root font zoom");
+for (const marker of [
+  "grid-template-rows: auto minmax(0, 1fr) auto",
+  "min-height: 100dvh",
+  "prefers-reduced-motion: reduce",
+  "--milos-shell-icon-size: 38px",
+  ".brand { width: 100%; max-width: 100%; flex-wrap: wrap; }"
+]) {
+  assert(componentStyles.includes(marker), `component stylesheet marker: ${marker}`);
+}
+assert(component.includes('new URL("./milos-app-shell.css", import.meta.url)'), "component loads external same-origin stylesheet");
+assert(!component.includes("<style>") && !component.includes("style.setProperty"), "component avoids inline styles");
+assert(!componentStyles.includes("min-width: 20rem"), "fixed 20rem page minimum is forbidden");
+assert(!componentStyles.includes("--milos-shell-icon-size: 2.375rem"), "icon must not double with root font zoom");
 assert(readme.includes("kein CDN") && readme.includes("keine gemeinsame Laufzeit"), "README lifecycle boundary");
 
 const syntax = spawnSync(process.execPath, ["--check", path.join(root, "dist", "milos-app-shell.js")], { encoding: "utf8" });
@@ -189,6 +205,18 @@ try {
     () => syncShell({ "app-root": partialDevRoot, manifest: "milos-app.json", "source-commit": zeroCommit, fixture: true }),
     /must both be HTTPS or both be null/,
     "partial DEV URL pair"
+  );
+
+  const unsafeThemeRoot = path.join(tempRoot, "unsafe-theme");
+  await cp(fixtureRoot, unsafeThemeRoot, { recursive: true });
+  const unsafeThemeManifestPath = path.join(unsafeThemeRoot, "milos-app.json");
+  const unsafeThemeManifest = JSON.parse(await readFile(unsafeThemeManifestPath, "utf8"));
+  unsafeThemeManifest.theme.accent = "red; background: url(https://invalid.example/)";
+  await writeFile(unsafeThemeManifestPath, `${JSON.stringify(unsafeThemeManifest, null, 2)}\n`, "utf8");
+  await expectFailure(
+    () => syncShell({ "app-root": unsafeThemeRoot, manifest: "milos-app.json", "source-commit": zeroCommit, fixture: true }),
+    /unsafe CSS token/,
+    "unsafe generated theme value"
   );
 } finally {
   await rm(tempRoot, { recursive: true, force: true });

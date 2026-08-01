@@ -3,9 +3,18 @@ import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const VERSION = "2.0.2";
+const VERSION = "2.0.3";
 const ID = "public-app-shell/v2";
 const CONSUMERS = new Set(["noodle-calculator", "sky", "cloud-post", "somewhere-now", "gravity-loop", "waste-guide", "daylight"]);
+const THEME_PROPERTIES = Object.freeze({
+  accent: "--milos-shell-accent",
+  accentContrast: "--milos-shell-accent-contrast",
+  surface: "--milos-shell-surface",
+  text: "--milos-shell-text",
+  muted: "--milos-shell-muted",
+  border: "--milos-shell-border",
+  focus: "--milos-shell-focus"
+});
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const contractRoot = path.resolve(scriptRoot, "..");
 
@@ -64,15 +73,34 @@ function validateManifest(manifest, sourceCommit, fixture) {
   if (!hasPublishedDev && !hasBlockedDev) fail("dev.url and dev.healthUrl must both be HTTPS or both be null");
 }
 
+function safeThemeValue(value, key) {
+  if (typeof value !== "string" || !value.trim()) return null;
+  if (/[;{}<>\r\n]/.test(value)) fail(`theme.${key} contains an unsafe CSS token`);
+  return value.trim();
+}
+
+function themeSource(manifest) {
+  const properties = Object.entries(THEME_PROPERTIES)
+    .map(([key, property]) => {
+      const value = safeThemeValue(manifest.theme?.[key], key);
+      return value ? `  ${property}: ${value};` : null;
+    })
+    .filter(Boolean)
+    .join("\n");
+  const themeBlock = properties
+    ? `\nmilos-app-shell[data-milos-app-key="${manifest.appKey}"] {\n${properties}\n}\n`
+    : "";
+  return `body[data-milos-app-shell-page] {\n  min-width: 0;\n  min-height: 100%;\n  margin: 0;\n}\n${themeBlock}`;
+}
+
 function bootstrapSource(manifest) {
   const config = {
     appKey: manifest.appKey,
     environment: manifest.environment,
     productionApproved: manifest.productionApproved,
-    description: manifest.description,
-    theme: manifest.theme || {}
+    description: manifest.description
   };
-  return `import { registerMilosAppShell } from "./milos-app-shell.js";\n\nregisterMilosAppShell(${JSON.stringify(config, null, 2)});\n`;
+  return `import { registerMilosAppShell } from "./milos-app-shell.js";\n\nconst appKey = ${JSON.stringify(manifest.appKey)};\ndocument.body?.setAttribute("data-milos-app-shell-page", "");\nconst themeUrl = new URL("./milos-app-shell-theme.css", import.meta.url).href;\nlet themeLink = document.querySelector(\`link[data-milos-app-shell-theme="\${appKey}"]\`);\nif (!themeLink) {\n  themeLink = document.createElement("link");\n  themeLink.rel = "stylesheet";\n  themeLink.href = themeUrl;\n  themeLink.dataset.milosAppShellTheme = appKey;\n  await new Promise((resolve, reject) => {\n    themeLink.addEventListener("load", resolve, { once: true });\n    themeLink.addEventListener("error", () => reject(new Error("MilosApps shell theme stylesheet failed to load")), { once: true });\n    document.head.append(themeLink);\n  });\n}\nregisterMilosAppShell(${JSON.stringify(config, null, 2)});\n`;
 }
 
 export async function syncShell(options) {
@@ -87,11 +115,15 @@ export async function syncShell(options) {
   await mkdir(vendorRoot, { recursive: true });
 
   const componentSource = await readFile(path.join(contractRoot, "dist", "milos-app-shell.js"));
+  const componentStyles = await readFile(path.join(contractRoot, "dist", "milos-app-shell.css"));
   const verifierSource = await readFile(path.join(contractRoot, "dist", "verify.mjs"));
   const bootstrap = Buffer.from(bootstrapSource(manifest), "utf8");
+  const theme = Buffer.from(themeSource(manifest), "utf8");
 
   await writeFile(path.join(vendorRoot, "milos-app-shell.js"), componentSource);
+  await writeFile(path.join(vendorRoot, "milos-app-shell.css"), componentStyles);
   await writeFile(path.join(vendorRoot, "bootstrap.js"), bootstrap);
+  await writeFile(path.join(vendorRoot, "milos-app-shell-theme.css"), theme);
   await copyFile(path.join(contractRoot, "dist", "verify.mjs"), path.join(vendorRoot, "verify.mjs"));
 
   const lock = {
@@ -103,7 +135,9 @@ export async function syncShell(options) {
     vendorDirectory: path.relative(appRoot, vendorRoot).replaceAll(path.sep, "/"),
     artifacts: {
       "milos-app-shell.js": `sha256:${sha256(componentSource)}`,
+      "milos-app-shell.css": `sha256:${sha256(componentStyles)}`,
       "bootstrap.js": `sha256:${sha256(bootstrap)}`,
+      "milos-app-shell-theme.css": `sha256:${sha256(theme)}`,
       "verify.mjs": `sha256:${sha256(verifierSource)}`
     }
   };

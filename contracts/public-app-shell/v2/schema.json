@@ -24,7 +24,7 @@
   "properties": {
     "$schema": { "type": "string" },
     "id": { "const": "public-app-shell/v2" },
-    "version": { "const": "2.0.2" },
+    "version": { "const": "2.0.3" },
     "status": { "enum": ["draft", "stable", "deprecated"] },
     "delivery": {
       "type": "object",

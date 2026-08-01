@@ -3,6 +3,8 @@
   background: #fbfcff;
 }
 
+:root[data-text-zoom="200"] { font-size: 200%; }
+
 main {
   padding-block: clamp(2.5rem, 8vw, 6rem);
 }

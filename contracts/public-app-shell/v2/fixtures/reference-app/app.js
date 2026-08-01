@@ -18,7 +18,7 @@ const messages = {
 };
 
 if (new URLSearchParams(window.location.search).get("textZoom") === "200") {
-  document.documentElement.style.fontSize = "200%";
+  document.documentElement.dataset.textZoom = "200";
 }
 
 function applyAppLocale(locale) {

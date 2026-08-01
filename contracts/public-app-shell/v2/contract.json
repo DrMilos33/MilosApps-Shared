@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "id": "public-app-shell/v2",
-  "version": "2.0.2",
+  "version": "2.0.3",
   "status": "stable",
   "delivery": {
     "format": "dependency-free-es-module-web-component",
@@ -9,7 +9,31 @@
     "cdnAllowed": false,
     "crossRepositoryRuntimeImportAllowed": false,
     "lockRequired": true,
-    "sha256Required": true
+    "sha256Required": true,
+    "inlineStyleInjectionAllowed": false,
+    "strictStyleSourceSelfSupported": true,
+    "runtimeAssets": [
+      {
+        "file": "bootstrap.js",
+        "relativeUrl": "./bootstrap.js",
+        "contentType": "text/javascript; charset=utf-8"
+      },
+      {
+        "file": "milos-app-shell.js",
+        "relativeUrl": "./milos-app-shell.js",
+        "contentType": "text/javascript; charset=utf-8"
+      },
+      {
+        "file": "milos-app-shell.css",
+        "relativeUrl": "./milos-app-shell.css",
+        "contentType": "text/css; charset=utf-8"
+      },
+      {
+        "file": "milos-app-shell-theme.css",
+        "relativeUrl": "./milos-app-shell-theme.css",
+        "contentType": "text/css; charset=utf-8"
+      }
+    ]
   },
   "consumers": [
     "noodle-calculator",
@@ -93,6 +117,7 @@
     "desktop": "1440x900",
     "mobile": "390x844",
     "zoomPercent": 200,
+    "strictCsp": "default-src 'self'; script-src 'self'; style-src 'self'",
     "horizontalOverflowAllowed": false,
     "reducedMotionRequired": true,
     "noLoginRequired": true

@@ -1,2 +1,3 @@
 contracts/public-app-shell/v2/**/*.js text eol=lf
 contracts/public-app-shell/v2/**/*.mjs text eol=lf
+contracts/public-app-shell/v2/**/*.css text eol=lf

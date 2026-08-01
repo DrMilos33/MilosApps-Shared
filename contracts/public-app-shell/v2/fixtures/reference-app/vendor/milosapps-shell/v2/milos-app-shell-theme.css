@@ -1,0 +1,15 @@
+body[data-milos-app-shell-page] {
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+}
+
+milos-app-shell[data-milos-app-key="reference-app"] {
+  --milos-shell-accent: #3454d1;
+  --milos-shell-accent-contrast: #ffffff;
+  --milos-shell-surface: #fbfcff;
+  --milos-shell-text: #172033;
+  --milos-shell-muted: #5f6b7a;
+  --milos-shell-border: #d8deea;
+  --milos-shell-focus: #c44200;
+}

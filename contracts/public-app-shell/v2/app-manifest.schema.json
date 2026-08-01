@@ -28,7 +28,7 @@
       "required": ["id", "version", "sharedCommit", "vendorDirectory", "entryHtml", "localeModule"],
       "properties": {
         "id": { "const": "public-app-shell/v2" },
-        "version": { "const": "2.0.2" },
+        "version": { "const": "2.0.3" },
         "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" },
         "entryHtml": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.html$" },
@@ -49,13 +49,13 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "accent": { "type": "string", "minLength": 1 },
-        "accentContrast": { "type": "string", "minLength": 1 },
-        "surface": { "type": "string", "minLength": 1 },
-        "text": { "type": "string", "minLength": 1 },
-        "muted": { "type": "string", "minLength": 1 },
-        "border": { "type": "string", "minLength": 1 },
-        "focus": { "type": "string", "minLength": 1 }
+        "accent": { "type": "string", "minLength": 1, "pattern": "^[^;{}<>\\r\\n]+$" },
+        "accentContrast": { "type": "string", "minLength": 1, "pattern": "^[^;{}<>\\r\\n]+$" },
+        "surface": { "type": "string", "minLength": 1, "pattern": "^[^;{}<>\\r\\n]+$" },
+        "text": { "type": "string", "minLength": 1, "pattern": "^[^;{}<>\\r\\n]+$" },
+        "muted": { "type": "string", "minLength": 1, "pattern": "^[^;{}<>\\r\\n]+$" },
+        "border": { "type": "string", "minLength": 1, "pattern": "^[^;{}<>\\r\\n]+$" },
+        "focus": { "type": "string", "minLength": 1, "pattern": "^[^;{}<>\\r\\n]+$" }
       }
     },
     "integration": {

@@ -4,6 +4,17 @@
 
 - Keine Änderungen.
 
+## 2.0.3 – 2026-08-01
+
+- Shadow-DOM-CSS aus dem JavaScript-Inline-`style` in die vendorte externe
+  Datei `milos-app-shell.css` verschoben.
+- App-spezifische Theme-Tokens werden beim Sync als externe
+  `milos-app-shell-theme.css` erzeugt und vom Bootstrap als Same-Origin-Datei
+  geladen; `style.setProperty` und dynamische Inline-Styles entfallen.
+- Lock und portabler Validator prüfen beide CSS-Artefakte. Der Vertrag verlangt
+  eine grüne Browserregression unter `script-src 'self'; style-src 'self'`
+  ohne Nonce, Hash oder `unsafe-inline`.
+
 ## 2.0.2 – 2026-08-01
 
 - Die globale `20rem`-Mindestbreite der Shell-Seite entfernt. Dadurch kann die
