@@ -176,12 +176,13 @@ milos-share-button {
 }
 milos-share-button svg { width: 1.1rem; height: 1.1rem; }
 [data-milos-share-status] {
-  position: absolute;
-  z-index: 2;
-  inset-block-start: calc(100% + 0.4rem);
-  inset-inline-end: 0;
-  width: max-content;
-  max-width: min(18rem, calc(100vw - 2rem));
+  position: fixed;
+  z-index: 10020;
+  inset-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+  inset-block-end: max(1rem, env(safe-area-inset-bottom));
+  width: fit-content;
+  max-width: calc(100vw - 2rem - env(safe-area-inset-left) - env(safe-area-inset-right));
+  margin-inline: auto;
   padding: 0.45rem 0.65rem;
   border: 1px solid var(--milos-essential-border);
   border-radius: 0.6rem;

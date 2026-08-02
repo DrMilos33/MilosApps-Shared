@@ -6,7 +6,9 @@
 
 - Datenschutzmodi präzisiert: `no-cookies` erzeugt weder Banner noch
   Dismiss-/Consent-Zustand; `essential-only` zeigt ausschließlich einen
-  schließbaren Sachhinweis ohne Akzeptieren-/Ablehnen-Simulation.
+  schließbaren Sachhinweis ohne Akzeptieren-/Ablehnen-Simulation. Der alte
+  `privacyNotice.v1`-Komfortschlüssel wird nur im Namespace der eigenen App
+  entfernt.
 - Share-Rückmeldung ohne Layoutverschiebung: natives Teilen und Abbruch bleiben
   visuell still, Clipboard-/Fehlerstatus erscheint kurz als Overlay.
 - Datumsauswahl reflowt nach Komponentenbreite, behält 44-Pixel-Ziele und
@@ -14,7 +16,10 @@
 - Ortssuche bleibt standardmäßig submit-only. Vorschläge sind ein expliziter
   Opt-in mit Mindestzeichen, Debounce, Abort, Stale-Result-Schutz,
   Tastaturführung und app-eigenem Proxy-/Provider-Nachweis; direktes
-  öffentliches Nominatim-Autocomplete bleibt verboten.
+  öffentliches Nominatim-Autocomplete bleibt verboten, eine getrennte
+  explizite Submit-Suche über öffentliches Nominatim aber zulässig.
+- Submit- und Suggestions-Anfragen besitzen getrennte Abort-/Request-IDs,
+  Query-/Stale-Guards, Escape-Abbruch und Disconnect-Cleanup.
 - JSON-Vertrags- und Lockdateien für Essentials v1 werden im Shared-Repository
   explizit mit LF ausgecheckt; Verbraucher behalten zusätzlich ihre enge
   vendorlokale LF-Regel.

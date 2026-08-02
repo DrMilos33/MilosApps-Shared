@@ -72,6 +72,7 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   if (!/^[0-9a-f]{40}$/.test(manifest.essentialsContract.sharedCommit || "")) fail("full sharedCommit is required");
   if (manifest.environment === "dev" && manifest.productionApproved !== false) fail("DEV requires productionApproved=false");
   if (manifest.environment === "production" && manifest.productionApproved !== true) fail("Production requires explicit approval");
+  if (manifest.privacy?.mode !== "no-cookies" && manifest.privacy?.mode !== "essential-only") fail("unsupported privacy mode");
   if (manifest.privacy?.optionalTracking !== false) fail("optional tracking is forbidden");
   if (!/^https:\/\//.test(manifest.privacy?.privacyUrl || "")) fail("privacy URL must use HTTPS");
   if (manifest.features?.share !== true) fail("share is required");
@@ -126,7 +127,6 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   if (manifest.features?.placeSearch && !/<milos-place-search(?:\s|>)/i.test(allSources)) fail("enabled place search is missing");
   if (suggestions.enabled) {
     if (!/setSuggestionsProvider\s*\(/.test(allSources)) fail("enabled place suggestions require an app-owned suggestions provider");
-    if (/nominatim\.openstreetmap\.org/i.test(allSources)) fail("public Nominatim autocomplete is forbidden");
   }
 
   if (manifest.features?.startup) {

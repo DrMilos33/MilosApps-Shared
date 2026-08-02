@@ -60,8 +60,8 @@ assert(contract.modules.share.nativeSuccessFeedback === "silent" && contract.mod
 assert(contract.modules.datePicker.implementation === "native-date-input-plus-year-jump", "native date foundation");
 assert(contract.modules.datePicker.reflowBasis === "component-inline-size" && contract.modules.datePicker.selectInlineEndSafeAreaRequired, "date component reflow and select safe area");
 assert(contract.modules.placeSearch.providerOwnedByConsumer && contract.modules.placeSearch.explicitSubmitRequired, "provider-neutral explicit place search");
-assert(contract.modules.placeSearch.publicNominatimAutocompleteForbidden, "public Nominatim autocomplete blocked");
-assert(contract.modules.placeSearch.defaultMode === "submit-only" && contract.modules.placeSearch.suggestions.providerEvidenceRequired, "place suggestions are explicit and evidenced");
+assert(contract.modules.placeSearch.publicNominatimAutocompleteForbidden && contract.modules.placeSearch.publicNominatimSubmitSearchAllowed, "public Nominatim remains submit-only");
+assert(contract.modules.placeSearch.defaultMode === "submit-only" && contract.modules.placeSearch.suggestions.providerEvidenceRequired && contract.modules.placeSearch.suggestions.providerRegistration === "setSuggestionsProvider", "place suggestions are explicit and evidenced");
 assert(contract.modules.placeSearch.suggestions.abortRequired && contract.modules.placeSearch.suggestions.staleResultSuppressionRequired && contract.modules.placeSearch.suggestions.keyboardNavigationRequired, "suggestions lifecycle and keyboard contract");
 assert(contract.quality.controlsMinTargetPx === 44 && contract.quality.zoomViewport === "360x800@200%", "touch and reflow gates");
 assert(contract.quality.productionApproved === false, "Production blocked");
@@ -87,19 +87,31 @@ for (const marker of [
   "container-name: milos-date-picker",
   "@container milos-date-picker",
   "padding-inline-end: 2.25rem",
+  "position: fixed",
+  "env(safe-area-inset-bottom)",
   "data-milos-share-status][data-visible=\"false\"]",
   "data-milos-place-results",
   "prefers-reduced-motion: reduce"
 ]) assert(cssText.includes(marker), `runtime CSS marker: ${marker}`);
 assert(!cssText.includes("min-width: 20rem"), "fixed viewport floor forbidden");
+const shareStatusCss = cssText.match(/\[data-milos-share-status\]\s*\{([^}]*)\}/s)?.[1] || "";
+assert(shareStatusCss.includes("position: fixed") && shareStatusCss.includes("safe-area-inset-left") && shareStatusCss.includes("safe-area-inset-bottom"), "share feedback is viewport-fixed and safe-area bounded");
 
 const runtimeText = runtime.toString("utf8");
-for (const marker of ["navigator.share", "navigator.clipboard", "milosapps:datechange", "milosapps:placechange", "milosapps:ready", "role\", \"combobox", "setSuggestionsProvider", "suggestionRequestId", "consumer-autocomplete-proxy"] ) {
+for (const marker of ["navigator.share", "navigator.clipboard", "milosapps:datechange", "milosapps:placechange", "milosapps:ready", "role\", \"combobox", "setSuggestionsProvider", "suggestionRequestId", "searchRequestId", "consumer-autocomplete-proxy", "disconnectedCallback", "storageRemove"] ) {
   assert(runtimeText.includes(marker), `runtime JS marker: ${marker}`);
 }
 assert(!runtimeText.includes("style.setProperty"), "runtime inline theme mutation forbidden");
 assert(!runtimeText.includes("queueSearch"), "place search must not autocomplete on input");
-assert(readme.includes("kein Einwilligungsbanner") && readme.includes("kein Banner") && readme.includes("consumer-autocomplete-proxy") && readme.includes("nominatim.openstreetmap.org"), "README explains privacy and provider boundaries");
+assert(!runtimeText.includes("localeCopy().shared"), "native share success remains visually silent");
+assert(runtimeText.indexOf('if (event.key === "Escape")') < runtimeText.indexOf("if (!this.results.length)"), "Escape cancels before empty-result early return");
+assert(/if \(event\.key === "Escape"\)[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);/.test(runtimeText), "Escape cancels both place request types");
+assert(/input\.addEventListener\("input"[\s\S]+?cancelSearch\(\);[\s\S]+?queueSuggestions\(\);/.test(runtimeText), "new input invalidates submit search before suggestions");
+assert(runtimeText.includes("signal.aborted || requestId !== this.searchRequestId || currentQuery !== query"), "submit search rejects stale results");
+assert((runtimeText.match(/disconnectedCallback\(\)/g) || []).length >= 2, "share and place components clean up on disconnect");
+assert(runtimeText.includes('storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`)'), "legacy privacy key cleanup is app-namespaced");
+assert(verifier.toString("utf8").includes('manifest.privacy?.mode !== "no-cookies"'), "verifier enumerates privacy modes");
+assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 auf 1.1.0") && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot"), "README explains migration, privacy and provider boundaries");
 
 await syncEssentials({ "app-root": fixtureRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
 const fixture = await verifyEssentials(fixtureRoot, "essentials-manifest.json");
@@ -123,6 +135,14 @@ try {
     /optional tracking/,
     "optional tracking"
   );
+
+  const invalidPrivacyModeRoot = path.join(tempRoot, "invalid-privacy-mode");
+  await cp(fixtureRoot, invalidPrivacyModeRoot, { recursive: true });
+  const invalidPrivacyManifestPath = path.join(invalidPrivacyModeRoot, "essentials-manifest.json");
+  const invalidPrivacyManifest = JSON.parse(await readFile(invalidPrivacyManifestPath, "utf8"));
+  invalidPrivacyManifest.privacy.mode = "optional";
+  await writeFile(invalidPrivacyManifestPath, `${JSON.stringify(invalidPrivacyManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(invalidPrivacyModeRoot, "essentials-manifest.json"), /unsupported privacy mode/, "unknown privacy mode");
 
   const fakeNoCookieBannerRoot = path.join(tempRoot, "fake-no-cookie-banner");
   await cp(fixtureRoot, fakeNoCookieBannerRoot, { recursive: true });
@@ -162,8 +182,17 @@ try {
   await syncEssentials({ "app-root": suggestionsRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
   const suggestionsFixture = await verifyEssentials(suggestionsRoot, "essentials-manifest.json");
   assert(suggestionsFixture.features.placeSuggestions.enabled === true, "evidenced consumer suggestions verify");
-  await writeFile(suggestionsAppPath, `${await readFile(suggestionsAppPath, "utf8")}\nconst forbiddenAutocomplete = "https://nominatim.openstreetmap.org/search";\n`, "utf8");
-  await expectFailure(() => verifyEssentials(suggestionsRoot, "essentials-manifest.json"), /public Nominatim autocomplete is forbidden/, "public Nominatim suggestions");
+  await writeFile(suggestionsAppPath, `${await readFile(suggestionsAppPath, "utf8")}\nconst explicitSubmitProviderUrl = "https://nominatim.openstreetmap.org/search";\n`, "utf8");
+  const nominatimSubmitFixture = await verifyEssentials(suggestionsRoot, "essentials-manifest.json");
+  assert(nominatimSubmitFixture.features.placeSuggestions.enabled === true, "public Nominatim host may coexist with separate evidenced suggestions proxy");
+
+  const missingSuggestionsEvidenceRoot = path.join(tempRoot, "missing-suggestions-evidence");
+  await cp(suggestionsRoot, missingSuggestionsEvidenceRoot, { recursive: true });
+  const missingEvidenceManifestPath = path.join(missingSuggestionsEvidenceRoot, "essentials-manifest.json");
+  const missingEvidenceManifest = JSON.parse(await readFile(missingEvidenceManifestPath, "utf8"));
+  missingEvidenceManifest.features.placeSuggestions.evidenceFile = "missing-suggestions-provider.md";
+  await writeFile(missingEvidenceManifestPath, `${JSON.stringify(missingEvidenceManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(missingSuggestionsEvidenceRoot, "essentials-manifest.json"), /suggestions evidence is missing/, "missing suggestions evidence");
 
   const noLoaderRoot = path.join(tempRoot, "no-loader");
   await cp(fixtureRoot, noLoaderRoot, { recursive: true });

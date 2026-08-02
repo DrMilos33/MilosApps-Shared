@@ -90,6 +90,10 @@ Das Verhalten folgt der im Manifest belegten technischen Realität:
 
 Nur `essential-only` darf den geschlossenen Informationszustand als lokalen
 Komfort speichern. `no-cookies` erzeugt dafür ausdrücklich keinen Schlüssel.
+Beim ersten Start von v1.1 entfernt die Runtime ausschließlich den veralteten
+app-eigenen Schlüssel `milosapps.<appKey>.privacyNotice.v1`. Fremde App-Keys,
+andere lokale Einstellungen und der neue Essential-Hinweiszustand bleiben
+unangetastet.
 
 ## Teilen
 
@@ -108,8 +112,9 @@ document.querySelector("milos-share-button").setPayloadProvider(() => ({
 
 Teilen ist eine bewusste Nutzeraktion. Erfolgreiches natives Teilen und der
 Abbruch des nativen Dialogs bleiben visuell still. Nur Clipboard-Fallback oder
-Fehler erscheinen kurz als absolut positionierte Statusblase; die äußeren Maße
-des Share-Controls und seines Elternlayouts bleiben dabei unverändert.
+Fehler erscheinen kurz als viewportfeste Statusblase innerhalb von Safe Areas;
+die äußeren Maße des Share-Controls und seines Elternlayouts bleiben dabei
+unverändert.
 
 ## Datum
 
@@ -165,8 +170,37 @@ app-eigenen Nachweis und die Integration registriert ausdrücklich
 Der Baustein übernimmt Debounce, Abbruch vorheriger Anfragen, Unterdrückung
 veralteter Antworten und Tastaturführung. Provider, Rate-Limit, Cache,
 Attribution und Zeitzone bleiben App-Eigentum. Direktes Autocomplete gegen
-`nominatim.openstreetmap.org` wird vom Verifier abgelehnt; öffentliches
-Nominatim bleibt submit-only.
+`nominatim.openstreetmap.org` bleibt verboten; öffentliches Nominatim darf in
+derselben App aber weiterhin für eine explizit abgeschickte `setSearchProvider`-
+Suche vorkommen. Deshalb prüft der Verifier die separate Suggestions-
+Capability, deren Evidenzdatei und `setSuggestionsProvider(...)`, nicht ein
+pauschales Hostwort-Verbot über sämtlichen App-Code.
+
+## Migration von 1.0.0 auf 1.1.0
+
+1. `essentialsContract.version` auf `1.1.0` und `sharedCommit` auf den
+   unveränderlichen v1.1-Releasecommit setzen; danach alle fünf Artefakte neu
+   synchronisieren und locken.
+2. `features.placeSuggestions` ergänzen. Der sichere Standard ist:
+   `enabled=false`, `minChars=3`, `debounceMs=350`,
+   `providerCapability="submit-only"`, `evidenceFile=null`.
+3. Bei `privacy.mode="no-cookies"` `features.privacyNotice=false` setzen und
+   einen dauerhaft erreichbaren Link mit `data-milos-privacy-info` sowie der
+   exakten `privacyUrl` ausgeben. Es entsteht kein Banner und kein Dismiss-Key.
+4. Bei `privacy.mode="essential-only"` `features.privacyNotice=true` behalten;
+   Texte dürfen den Sachhinweis nicht als Einwilligung darstellen.
+5. Falls Vorschläge fachlich nötig sind: app-eigenen Autocomplete-Proxy
+   nachweisen, Evidenzdatei eintragen, `consumer-autocomplete-proxy` deklarieren
+   und separat `setSuggestionsProvider(...)` registrieren. Der normale
+   `setSearchProvider(...)` bleibt die explizite Submit-Suche.
+6. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
+   Escape/Abort/Stale-Result und Disconnect-Cleanup in der Verbraucher-
+   Browsermatrix prüfen.
+
+Die Runtime entfernt bei der Migration nur
+`milosapps.<eigener-appKey>.privacyNotice.v1`. Dieser v1.0-Komfortwert war weder
+Consent noch fachlicher Nutzerdatensatz und wird nicht in den neuen
+Essential-Hinweiszustand übernommen.
 
 ## Pflicht-QA pro Verbraucher
 

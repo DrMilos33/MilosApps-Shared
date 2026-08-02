@@ -119,6 +119,10 @@ function storageSet(key, value) {
   try { localStorage.setItem(key, value); } catch { /* Local persistence is optional comfort. */ }
 }
 
+function storageRemove(key) {
+  try { localStorage.removeItem(key); } catch { /* Storage may be unavailable. */ }
+}
+
 function iconShare() {
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" stroke-linecap="round"/></svg>';
 }
@@ -258,6 +262,10 @@ class MilosShareButton extends HTMLElement {
   setPayloadProvider(provider) {
     if (typeof provider !== "function") throw new TypeError("Share payload provider must be a function");
     this.payloadProvider = provider;
+  }
+
+  disconnectedCallback() {
+    clearTimeout(this.statusTimer);
   }
 
   async share(button, status) {
@@ -439,6 +447,7 @@ class MilosPlaceSearch extends HTMLElement {
     this.activeIndex = -1;
     this.suggestionsConfig = activeConfig?.features?.placeSuggestions || Object.freeze({ enabled: false, minChars: 3, debounceMs: 350 });
     this.suggestionRequestId = 0;
+    this.searchRequestId = 0;
     this.render();
     this.setLocale(activeLocale);
   }
@@ -494,6 +503,7 @@ class MilosPlaceSearch extends HTMLElement {
     status.dataset.milosPlaceStatus = "";
     status.setAttribute("aria-live", "polite");
     input.addEventListener("input", () => {
+      this.cancelSearch();
       this.renderResults([]);
       this.status.textContent = "";
       this.queueSuggestions();
@@ -513,6 +523,7 @@ class MilosPlaceSearch extends HTMLElement {
   async runSearch() {
     const query = this.input.value.trim().replace(/\s+/g, " ");
     this.cancelSuggestions();
+    this.cancelSearch();
     if (query.length < 2) {
       this.renderResults([]);
       this.status.textContent = "";
@@ -522,19 +533,30 @@ class MilosPlaceSearch extends HTMLElement {
       this.status.textContent = localeCopy().providerMissing;
       return;
     }
-    this.controller?.abort();
-    this.controller = new AbortController();
+    const requestId = this.searchRequestId;
+    this.searchController = new AbortController();
+    const signal = this.searchController.signal;
     this.setBusy(true, localeCopy().searching);
     try {
-      const values = await this.searchProvider({ query, locale: activeLocale, signal: this.controller.signal });
+      const values = await this.searchProvider({ query, locale: activeLocale, signal });
+      const currentQuery = this.input.value.trim().replace(/\s+/g, " ");
+      if (signal.aborted || requestId !== this.searchRequestId || currentQuery !== query) return;
       this.results = normalizeMilosPlaceResults(values);
       this.renderResults(this.results);
       this.status.textContent = this.results.length ? "" : localeCopy().noResults;
     } catch (error) {
-      if (error?.name !== "AbortError") this.status.textContent = localeCopy().searchFailed;
+      const currentQuery = this.input.value.trim().replace(/\s+/g, " ");
+      if (error?.name !== "AbortError" && requestId === this.searchRequestId && currentQuery === query) this.status.textContent = localeCopy().searchFailed;
     } finally {
-      this.setBusy(false);
+      if (requestId === this.searchRequestId) this.setBusy(false);
     }
+  }
+
+  cancelSearch() {
+    this.searchRequestId += 1;
+    this.searchController?.abort();
+    this.searchController = null;
+    if (this.searchButton) this.setBusy(false);
   }
 
   queueSuggestions() {
@@ -620,6 +642,14 @@ class MilosPlaceSearch extends HTMLElement {
   }
 
   onKeyDown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.cancelSuggestions();
+      this.cancelSearch();
+      this.renderResults([]);
+      this.status.textContent = "";
+      return;
+    }
     if (!this.results.length) {
       if (event.key === "Enter") { event.preventDefault(); this.runSearch(); }
       return;
@@ -633,9 +663,6 @@ class MilosPlaceSearch extends HTMLElement {
       event.preventDefault();
       if (this.activeIndex >= 0) this.select(this.results[this.activeIndex]);
       else this.runSearch();
-    } else if (event.key === "Escape") {
-      this.cancelSuggestions();
-      this.renderResults([]);
     }
   }
 
@@ -650,6 +677,7 @@ class MilosPlaceSearch extends HTMLElement {
 
   select(place) {
     this.cancelSuggestions();
+    this.cancelSearch();
     this.input.value = [place.name, place.region].filter(Boolean).join(", ");
     this.renderResults([]);
     this.status.textContent = "";
@@ -665,6 +693,11 @@ class MilosPlaceSearch extends HTMLElement {
     if (this.searchButton) this.searchButton.textContent = copy.search;
     if (this.locateButton) this.locateButton.textContent = copy.useLocation;
   }
+
+  disconnectedCallback() {
+    this.cancelSuggestions();
+    this.cancelSearch();
+  }
 }
 
 export function markMilosAppReady() {
@@ -678,6 +711,7 @@ export function markMilosAppReady() {
 
 export function initMilosAppEssentials(config) {
   activeConfig = normalizeConfig(config);
+  storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`);
   activeLocale = normalizeLocale(document.documentElement.lang);
   document.body?.setAttribute("data-milos-essentials-page", "");
   if (activeConfig.features.startup) document.body?.setAttribute("data-milos-essentials-loading", "");
