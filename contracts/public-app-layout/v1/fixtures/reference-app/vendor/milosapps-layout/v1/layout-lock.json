@@ -1,14 +1,14 @@
 {
   "contract": "public-app-layout/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "sharedCommit": "0000000000000000000000000000000000000000",
   "appKey": "reference-app",
   "profile": "focused-task",
   "manifest": "milos-layout.json",
   "vendorDirectory": "vendor/milosapps-layout/v1",
   "artifacts": {
-    "milos-app-layout.css": "sha256:9f88a37766c88d037dd5eca0efa9f10dc11f20deb262f052a43124fdb1632cd9",
+    "milos-app-layout.css": "sha256:7c722140c6d83c3574ffe7fd1dac57ce2d517e015a8bd0841a04c0912d266f09",
     "milos-app-layout-theme.css": "sha256:e66ed74a132df316ad692599db11c35ffd9054986c5e23717c4c0887d024c69a",
-    "verify-layout.mjs": "sha256:b9251b4eb92e9215a5234a80c8b2ecd1a7b3157a5380813dc5cb386c01834d0e"
+    "verify-layout.mjs": "sha256:2124f11b8e474efe9e0e501200d0e2f47d5d716b69c0614b86916104fd842354"
   }
 }

@@ -4,6 +4,19 @@
 
 - Keine Änderungen.
 
+## public-app-layout 1.1.0 – 2026-08-02
+
+- H1, H2 und Intro-Icon mit eigenen deutlich kompakteren Desktop-/Mobilbudgets
+  begrenzt; Intro und Primärarbeitsbeginn zusätzlich enger gefasst.
+- `data-milos-settings*` als kompakte, reflowende Einstellungsstruktur ergänzt.
+  Auch geöffnet bleiben Einstellungsintro, Controls und lokale Resetaktion
+  unter einem eigenen Höhenbudget.
+- Schrittfolgen sind standardmäßig einspaltig. Zwei Spalten entstehen nur noch
+  durch den app-eigenen Opt-in `data-milos-flow="paired"` und reflowen mobil
+  wieder einspaltig.
+- Wolkenpost bleibt einziger Pilot; weitere Apps warten weiterhin auf das
+  Nutzerreview dieser zweiten DEV-Fassung. Production bleibt gesperrt.
+
 ## public-app-layout 1.0.0 – 2026-08-01
 
 - Separaten, frameworkneutralen Vertrag `public-app-layout/v1` für kompakte

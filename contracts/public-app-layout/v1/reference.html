@@ -19,6 +19,7 @@
       }
       body { margin: 0; background: var(--milos-layout-page); font-family: system-ui, sans-serif; }
       input { width: 100%; padding: 0.7rem 0.85rem; border: 1px solid var(--milos-layout-border); border-radius: 0.875rem; }
+      [data-milos-intro-icon] { border-radius: 1rem; color: var(--milos-layout-accent-contrast); background: var(--milos-layout-accent); font-weight: 800; }
     </style>
   </head>
   <body>
@@ -29,6 +30,7 @@
           <h1>Die Aufgabe beginnt früh.</h1>
           <p data-milos-lead>Kurze Einordnung, klare Aktion, keine dekorative Wartestrecke.</p>
         </div>
+        <div data-milos-intro-icon aria-hidden="true">M</div>
       </section>
       <section data-milos-primary-work data-milos-panel data-milos-stack>
         <div data-milos-step>
@@ -45,7 +47,19 @@
       </section>
       <details data-milos-secondary>
         <summary>Quellen und Einstellungen</summary>
-        <p>Wichtige Sekundärinformationen bleiben erreichbar, ohne die Hauptaufgabe zu verdrängen.</p>
+        <section data-milos-settings>
+          <div data-milos-settings-intro>
+            <p data-milos-eyebrow>Auf diesem Gerät</p>
+            <h2>Ruhig anpassen.</h2>
+            <p>Wichtige Optionen bleiben erreichbar, ohne die Hauptaufgabe zu verdrängen.</p>
+          </div>
+          <div data-milos-settings-controls>
+            <label data-milos-settings-control>Darstellung
+              <select><option>Wie das Gerät</option><option>Hell</option><option>Dunkel</option></select>
+            </label>
+            <button data-milos-secondary-action data-milos-settings-danger>Lokale Daten löschen</button>
+          </div>
+        </section>
       </details>
     </main>
   </body>

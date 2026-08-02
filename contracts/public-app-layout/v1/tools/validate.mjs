@@ -49,7 +49,7 @@ const layoutCss = await readFile(path.join(root, "dist", "milos-app-layout.css")
 const verifier = await readFile(path.join(root, "dist", "verify-layout.mjs"));
 const readme = await readFile(path.join(root, "README.md"), "utf8");
 
-assert(contract.id === "public-app-layout/v1" && contract.version === "1.0.0", "contract id/version");
+assert(contract.id === "public-app-layout/v1" && contract.version === "1.1.0", "contract id/version");
 assert(contract.status === "pilot", "pilot status");
 assert(schema.properties.id.const === contract.id && schema.properties.version.const === contract.version, "contract schema pins id/version");
 assert(JSON.stringify([...contract.eligibleConsumers].sort()) === JSON.stringify(expectedConsumers), "eligible public consumers");
@@ -59,8 +59,13 @@ assert(contract.excludedConsumers.includes("calendar") && contract.excludedClass
 assert(contract.relationship.shellContract === "public-app-shell/v2", "shell relationship remains explicit");
 assert(contract.delivery.cdnAllowed === false && contract.delivery.crossRepositoryRuntimeImportAllowed === false, "local pinned delivery");
 assert(contract.delivery.lockRequired && contract.delivery.sha256Required, "lock and hashes required");
-assert(contract.quality.desktop.introMaxHeightPx === 320 && contract.quality.desktop.primaryWorkMaxTopPx === 520, "desktop density budget");
-assert(contract.quality.mobile.introMaxHeightPx === 280 && contract.quality.mobile.primaryWorkMaxTopPx === 500, "mobile density budget");
+assert(contract.quality.desktop.introMaxHeightPx === 220 && contract.quality.desktop.primaryWorkMaxTopPx === 400, "desktop density budget");
+assert(contract.quality.mobile.introMaxHeightPx === 220 && contract.quality.mobile.primaryWorkMaxTopPx === 420, "mobile density budget");
+assert(contract.quality.desktop.h1MaxFontPx === 48 && contract.quality.mobile.h1MaxFontPx === 36, "compact H1 budget");
+assert(contract.quality.desktop.h2MaxFontPx === 26.4 && contract.quality.mobile.h2MaxFontPx === 22.4, "compact H2 budget");
+assert(contract.quality.desktop.introIconMaxPx === 72 && contract.quality.mobile.introIconMaxPx === 52, "intro icon budget");
+assert(contract.quality.desktop.openSettingsMaxHeightPx === 220 && contract.quality.mobile.openSettingsMaxHeightPx === 360, "open settings budget");
+assert(contract.quality.flowDefaultColumns === 1 && contract.quality.pairedFlowRequiresExplicitOptIn, "paired flow is opt-in");
 assert(contract.quality.zoom.percent === 200 && contract.quality.controlsMinTargetPx === 44, "zoom and touch targets");
 assert(contract.rollout.automaticMigration === false && contract.rollout.pilotMustPassUserReview === true, "pilot review gate");
 assert(contract.rollout.productionApproved === false, "Production blocked");
@@ -68,7 +73,7 @@ assert(manifestSchema.properties.$schema.type === "string", "manifest permits sc
 assert(Object.keys(example).every((key) => Object.hasOwn(manifestSchema.properties, key)), "example uses only schema properties");
 assert(example.layoutContract.id === contract.id && example.layoutContract.version === contract.version, "example pins contract");
 assert(example.public === true && example.loginRequired === false && example.productionApproved === false, "example public DEV boundary");
-assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-layout-v1.0.0", "release identity");
+assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-layout-v1.1.0", "release identity");
 assert(release.artifacts["dist/milos-app-layout.css"] === `sha256:${createHash("sha256").update(layoutCss).digest("hex")}`, "layout release hash");
 assert(release.artifacts["dist/verify-layout.mjs"] === `sha256:${createHash("sha256").update(verifier).digest("hex")}`, "verifier release hash");
 
@@ -79,6 +84,10 @@ for (const marker of [
   "--milos-layout-work-max: 60rem",
   "min-height: 44px",
   "data-milos-primary-work",
+  "data-milos-intro-icon",
+  "data-milos-flow=\"paired\"",
+  "data-milos-settings-controls",
+  "--milos-layout-settings-heading",
   "data-milos-panel] [data-milos-panel",
   "grid-template-rows: auto minmax(0, 1fr) auto",
   "prefers-reduced-motion: reduce"
@@ -86,6 +95,7 @@ for (const marker of [
   assert(cssText.includes(marker), `layout CSS marker: ${marker}`);
 }
 assert(!cssText.includes("min-width: 20rem"), "fixed viewport floor forbidden");
+assert(!/data-milos-flow\]\)\s*\{[^}]*repeat\(2/s.test(cssText), "generic flow must not default to two columns");
 assert(readme.includes("1440 × 900") && readme.includes("390 × 844") && readme.includes("360 × 800"), "README density matrix");
 assert(readme.includes("Der erste Verbraucher ist ausschließlich `cloud-post`"), "README single-pilot gate");
 

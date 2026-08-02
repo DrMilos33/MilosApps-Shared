@@ -20,9 +20,11 @@ Integrationsverträge.
   Build-Vendorung, SHA-256-Lock, Sync-/Verify-Werkzeug und standardisierter
   Referenz-QA. Kalender und kontopflichtige Apps sind ausgeschlossen.
 - [`public-app-layout/v1`](contracts/public-app-layout/v1/README.md):
-  frameworkneutraler, kompakter Inhaltslayout-Baukasten mit Dichtebudget,
-  lokalen CSS-Artefakten, app-eigenen Farbtokens, Sync, SHA-256-Lock und
-  Validator. `cloud-post` ist der einzige Pilot bis zum Nutzerreview.
+  frameworkneutraler, kompakter Inhaltslayout-Baukasten. Version 1.1.0
+  begrenzt zusätzlich H1/H2/Icon, bietet kompakte Einstellungen und macht
+  Zwei-Spalten-Flows zum bewussten Opt-in. Lokale CSS-Artefakte, app-eigene
+  Farbtokens, Sync, SHA-256-Lock und Validator bleiben erhalten. `cloud-post`
+  ist der einzige Pilot bis zum Nutzerreview.
 
 ## Konsummodell
 

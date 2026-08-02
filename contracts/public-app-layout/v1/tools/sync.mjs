@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-layout/v1";
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const CONSUMERS = new Set([
   "noodle-calculator",
   "sky",

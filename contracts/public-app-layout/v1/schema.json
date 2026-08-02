@@ -24,7 +24,7 @@
   "properties": {
     "$schema": { "type": "string" },
     "id": { "const": "public-app-layout/v1" },
-    "version": { "const": "1.0.0" },
+    "version": { "const": "1.1.0" },
     "status": { "enum": ["pilot", "stable", "deprecated"] },
     "purpose": { "type": "string", "minLength": 1 },
     "delivery": { "type": "object" },
@@ -36,6 +36,7 @@
     "relationship": { "type": "object" },
     "profiles": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
     "requiredMarkers": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+    "optionalPrimitives": { "type": "object" },
     "quality": { "type": "object" },
     "rollout": { "type": "object" }
   }

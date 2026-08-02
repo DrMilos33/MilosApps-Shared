@@ -26,7 +26,7 @@
       "required": ["id", "version", "sharedCommit", "vendorDirectory"],
       "properties": {
         "id": { "const": "public-app-layout/v1" },
-        "version": { "const": "1.0.0" },
+        "version": { "const": "1.1.0" },
         "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "vendorDirectory": { "type": "string", "minLength": 1 }
       }

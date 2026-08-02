@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-layout/v1";
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const CONSUMERS = new Set([
   "noodle-calculator",
   "sky",
@@ -91,6 +91,12 @@ export async function verifyLayout(appRootInput, manifestInput) {
   if (!markup.includes("data-milos-primary-work")) fail("primary work marker is required");
   if (!markup.includes(`data-milos-profile`) || !markup.includes(manifest.profile)) fail("manifest profile must appear in markup");
   if (!markup.includes("data-milos-app-key") || !markup.includes(manifest.appKey)) fail("app key marker is required");
+  if (markup.includes("data-milos-settings")) {
+    for (const marker of ["data-milos-settings-intro", "data-milos-settings-controls", "data-milos-settings-control"]) {
+      if (!markup.includes(marker)) fail(`compact settings require ${marker}`);
+    }
+  }
+  if (markup.includes("data-milos-flow-columns")) fail("paired flow must use the explicit data-milos-flow=paired contract");
   if (!delivery.includes("milos-app-layout.css") || !delivery.includes("milos-app-layout-theme.css")) fail("both local layout stylesheets must be referenced");
   if (/https?:[^"')]+milos-app-layout/i.test(delivery)) fail("remote layout runtime is forbidden");
 

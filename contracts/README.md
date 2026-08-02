@@ -27,6 +27,8 @@ Vertragsversion.
   ausgeschlossen.
 - [`public-app-layout/v1`](public-app-layout/v1/README.md): kompakte,
   frameworkneutrale Hauptinhaltsachse mit Intro-, Arbeits-, Flow-, Ergebnis-,
-  Disclosure- und Dialog-Primitiven, app-eigenem Theme, Dichtebudget und
-  portablem Lock/Validator. Der erste Verbraucher ist ausschließlich
-  Wolkenpost; weitere Apps warten auf Nutzerreview.
+  Einstellungs-, Disclosure- und Dialog-Primitiven, app-eigenem Theme,
+  Dichtebudget und portablem Lock/Validator. Version 1.1.0 begrenzt Titel und
+  Intro-Icon und setzt mehrere Flowspalten nur per explizitem Opt-in. Der erste
+  Verbraucher ist ausschließlich Wolkenpost; weitere Apps warten auf
+  Nutzerreview.

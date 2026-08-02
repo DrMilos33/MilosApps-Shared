@@ -1,4 +1,4 @@
-/* public-app-layout/v1.0.0
+/* public-app-layout/v1.1.0
  * Compact, framework-neutral main-content primitives for public MilosApps.
  * The app owns identity and domain UI. public-app-shell/v2 owns header/footer.
  */
@@ -14,8 +14,9 @@
   --milos-layout-space-4: 1.125rem;
   --milos-layout-space-5: 1.5rem;
   --milos-layout-space-6: 2rem;
-  --milos-layout-title: clamp(2.25rem, 5vw, 4.25rem);
-  --milos-layout-heading: clamp(1.35rem, 2.5vw, 2rem);
+  --milos-layout-title: clamp(1.8rem, 3.2vw, 3rem);
+  --milos-layout-heading: clamp(1.2rem, 1.8vw, 1.65rem);
+  --milos-layout-settings-heading: clamp(1.05rem, 1.35vw, 1.3rem);
   --milos-layout-radius: 1.25rem;
   --milos-layout-control-radius: 0.875rem;
   --milos-layout-shadow: 0 1rem 2.5rem color-mix(in srgb, var(--milos-layout-text, #1f2523) 9%, transparent);
@@ -41,10 +42,10 @@
 }
 
 :where([data-milos-layout="compact"] h1) {
-  max-width: 19ch;
+  max-width: 22ch;
   font-size: var(--milos-layout-title);
-  line-height: 0.98;
-  letter-spacing: -0.045em;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
   text-wrap: balance;
 }
 
@@ -87,7 +88,7 @@
   padding-block: var(--milos-layout-space-3) var(--milos-layout-space-2);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  align-items: center;
   gap: var(--milos-layout-space-4) var(--milos-layout-space-5);
 }
 
@@ -110,6 +111,22 @@
   color: var(--milos-layout-muted, #66706c);
   font-size: clamp(1rem, 1.5vw, 1.125rem);
   line-height: 1.5;
+}
+
+:where([data-milos-intro-icon]) {
+  inline-size: clamp(3rem, 5vw, 4.5rem);
+  max-inline-size: 4.5rem;
+  max-block-size: 4.5rem;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+:where([data-milos-intro-icon] > svg,
+       [data-milos-intro-icon] > img) {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: contain;
 }
 
 :where([data-milos-intro-action]) {
@@ -138,8 +155,13 @@
 
 :where([data-milos-flow]) {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--milos-layout-space-4);
+}
+
+/* Multiple columns are an app-owned decision, never a default assumption. */
+:where([data-milos-flow="paired"]) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 :where([data-milos-stack]) {
@@ -154,7 +176,7 @@
 }
 
 :where([data-milos-panel]) {
-  padding: var(--milos-layout-space-4);
+  padding: var(--milos-layout-space-3);
   border: 1px solid var(--milos-layout-border, #d8ddd9);
   border-radius: var(--milos-layout-radius);
   background: var(--milos-layout-surface, #ffffff);
@@ -180,15 +202,15 @@
 
 :where([data-milos-step]) {
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
+  grid-template-columns: 1.75rem minmax(0, 1fr);
   gap: var(--milos-layout-space-3);
   align-items: start;
 }
 
 :where([data-milos-step-index]) {
-  width: 2rem;
-  min-width: 2rem;
-  height: 2rem;
+  width: 1.75rem;
+  min-width: 1.75rem;
+  height: 1.75rem;
   display: grid;
   place-items: center;
   border-radius: 999px;
@@ -254,6 +276,61 @@
   max-width: var(--milos-layout-reading-max);
 }
 
+:where([data-milos-settings]) {
+  width: 100%;
+  padding-block: var(--milos-layout-space-3);
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.55fr) minmax(0, 1.45fr);
+  align-items: start;
+  gap: var(--milos-layout-space-3) var(--milos-layout-space-4);
+}
+
+:where([data-milos-settings-intro]) {
+  display: grid;
+  align-content: start;
+  gap: var(--milos-layout-space-1);
+}
+
+:where([data-milos-settings-intro] h2,
+       [data-milos-settings-intro] h3) {
+  max-width: 22ch;
+  font-size: var(--milos-layout-settings-heading);
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+:where([data-milos-settings-intro] p:not([data-milos-eyebrow])) {
+  color: var(--milos-layout-muted, #66706c);
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+:where([data-milos-settings-controls]) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  align-items: end;
+  gap: var(--milos-layout-space-2);
+}
+
+:where([data-milos-settings-control]) {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--milos-layout-muted, #66706c);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+:where([data-milos-settings-control] > :is(input, select, textarea)) {
+  min-height: 44px;
+  padding: 0.55rem 0.7rem;
+}
+
+:where([data-milos-settings-danger]) {
+  justify-self: start;
+  align-self: end;
+}
+
 :where([data-milos-command-dock]) {
   display: flex;
   flex-wrap: wrap;
@@ -288,8 +365,8 @@
 
 @media (max-width: 42rem) {
   :where([data-milos-layout="compact"]) {
-    --milos-layout-title: clamp(1.9rem, 9vw, 2.8rem);
-    --milos-layout-heading: clamp(1.25rem, 6vw, 1.65rem);
+    --milos-layout-title: clamp(1.7rem, 7vw, 2.25rem);
+    --milos-layout-heading: clamp(1.15rem, 4.5vw, 1.4rem);
     --milos-layout-radius: 1rem;
     gap: var(--milos-layout-space-4);
     padding-block-start: var(--milos-layout-space-3);
@@ -305,16 +382,31 @@
     justify-self: start;
   }
 
-  :where([data-milos-flow]) {
+  :where([data-milos-intro-icon]) {
+    inline-size: min(3.25rem, 18vw);
+    max-inline-size: 3.25rem;
+    max-block-size: 3.25rem;
+  }
+
+  :where([data-milos-flow="paired"]) {
     grid-template-columns: minmax(0, 1fr);
   }
 
   :where([data-milos-panel], [data-milos-result]) {
-    padding: var(--milos-layout-space-3);
+    padding: var(--milos-layout-space-2);
   }
 
   :where([data-milos-panel-header]) {
     display: grid;
+  }
+
+  :where([data-milos-settings]) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--milos-layout-space-2);
+  }
+
+  :where([data-milos-settings-controls]) {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

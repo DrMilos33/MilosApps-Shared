@@ -1,6 +1,6 @@
 # `public-app-layout/v1`
 
-Version `1.0.0` ist der kompakte Inhaltslayout-Vertrag für öffentliche
+Version `1.1.0` ist der kompakte Inhaltslayout-Vertrag für öffentliche
 MilosApps ohne Konto. Er ergänzt `public-app-shell/v2`; er ersetzt den
 Header-/Footer-Vertrag nicht.
 
@@ -12,9 +12,11 @@ Interaktion. Dieser Vertrag standardisiert nur die wiederkehrende Mitte:
 
 - ruhige Inhaltsachse und Dichte-Tokens;
 - kurze Introzone statt großer, rein dekorativer Hero-Fläche;
+- begrenzte H1-, H2- und Intro-Icon-Größen statt viewportfüllender Markenfläche;
 - frühe Sichtbarkeit der eigentlichen Aufgabe;
 - eine visuelle Oberflächenebene statt Karten in Karten;
-- kompakte Flow-, Ergebnis-, Disclosure-, Dialog- und Command-Dock-Primitiven;
+- kompakte Flow-, Einstellungs-, Ergebnis-, Disclosure-, Dialog- und
+  Command-Dock-Primitiven;
 - messbare Desktop-, Mobil- und 200-Prozent-Reflow-Grenzen.
 
 Die Referenzrichtung ist aus den bestätigten DEV-Ständen von `sky`,
@@ -80,6 +82,7 @@ verboten.
       <h1>Die kurze, konkrete Aufgabe</h1>
       <p data-milos-lead>Ein Satz erklärt Nutzen und Grenze.</p>
     </div>
+    <div data-milos-intro-icon aria-hidden="true"><!-- kleines App-SVG --></div>
   </section>
 
   <section data-milos-primary-work data-milos-panel>
@@ -88,7 +91,15 @@ verboten.
 
   <details data-milos-secondary>
     <summary>Quellen und Einstellungen</summary>
-    <!-- Sekundäre Informationen -->
+    <section data-milos-settings>
+      <div data-milos-settings-intro>
+        <h2>Auf diesem Gerät</h2>
+        <p>Kurze Einordnung statt zweiter Heroüberschrift.</p>
+      </div>
+      <div data-milos-settings-controls>
+        <label data-milos-settings-control>Darstellung <select><!-- … --></select></label>
+      </div>
+    </section>
   </details>
 </main>
 ```
@@ -97,8 +108,10 @@ verboten.
 
 - `focused-task`: Rechner, Suche oder einzelner Helfer. Die Hauptaufgabe folgt
   direkt auf das Intro.
-- `guided-flow`: zwei bis wenige nachvollziehbare Arbeitsschritte. Schritte
-  werden flach nebeneinander beziehungsweise mobil untereinander angeordnet.
+- `guided-flow`: zwei bis wenige nachvollziehbare Arbeitsschritte. Der Flow ist
+  standardmäßig einspaltig. Nur wenn Inhalt, Mindestbreite und Arbeitsfolge es
+  fachlich tragen, aktiviert die App mit `data-milos-flow="paired"` bewusst
+  zwei Spalten; mobil wird wieder einspaltig reflowt.
 - `immersive`: Canvas, Karte oder Planetarium. Das Intro bleibt besonders kurz,
   die interaktive Fläche beginnt früh.
 
@@ -110,12 +123,17 @@ Profile sind keine Themes und erzeugen keine Produktlogik.
 |---|---|
 | `data-milos-intro` | kurze Einordnung mit genau einem H1 |
 | `data-milos-primary-work` | erste echte Fachaktion oder immersive Fläche |
-| `data-milos-flow` | flache, responsive Schrittfolge |
+| `data-milos-flow` | flache, standardmäßig einspaltige Schrittfolge; `="paired"` ist bewusster Zwei-Spalten-Opt-in |
 | `data-milos-panel` | genau eine visuelle Oberflächenebene |
 | `data-milos-step` | nummerierter oder benannter Schritt |
 | `data-milos-actions` | kompakt umbrechende Aktionen |
 | `data-milos-result` | Ergebnisfläche, nicht zusätzliche Kartenhierarchie |
 | `data-milos-secondary` | progressive Offenlegung für Quellen/Meta/Optionen |
+| `data-milos-settings` | kompakter offener Einstellungsinhalt innerhalb einer Disclosure |
+| `data-milos-settings-intro` | kurze Einordnung ohne große zweite Heroüberschrift |
+| `data-milos-settings-controls` | dicht reflowendes Raster der Einstellungsfelder |
+| `data-milos-settings-control` | Label und 44-Pixel-Control als eine kompakte Einheit |
+| `data-milos-settings-danger` | ruhige, getrennte lokale Lösch-/Resetaktion |
 | `data-milos-command-dock` | kompakte mobile oder immersive Bediengruppe |
 | `data-milos-dialog-layout` | Dialog mit fixem Kopf, Scrollmitte und Aktionen |
 
@@ -129,15 +147,28 @@ Die App markiert Intro und Primärarbeit. Ihre Browser-QA prüft:
 
 | Viewport | Intro maximal | Oberkante Primärarbeit maximal |
 |---|---:|---:|
-| 1440 × 900 | 320 px | 520 px |
-| 390 × 844 | 280 px | 500 px |
+| 1440 × 900 | 220 px | 400 px |
+| 390 × 844 | 220 px | 420 px |
+
+Zusätzliche Größenbudgets:
+
+| Viewport | H1 maximal | H2 maximal | Intro-Icon maximal | geöffnete Einstellungen maximal |
+|---|---:|---:|---:|---:|
+| 1440 × 900 | 48 px | 26,4 px | 72 px | 220 px |
+| 390 × 844 | 36 px | 22,4 px | 52 px | 360 px |
 
 Zusätzlich verbindlich:
 
 - 360 × 800 bei 200 Prozent Textskalierung ohne horizontalen Überlauf;
 - sichtbare Interaktionsziele mindestens 44 × 44 CSS-Pixel;
 - genau ein H1, vollständiges DE/EN und Reload-Persistenz;
+- H1 als kurze Aufgabenformulierung statt Produktclaim oder Absatz; Icon nur
+  als kompakte Identitätsstütze, nie als eigene Hero-Fläche;
 - kein großer dekorativer Block vor der Primärarbeit;
+- Schrittüberschriften bleiben proportional zur Fachfläche und werden nicht
+  zu zweiten Seitentiteln;
+- Einstellungen sind standardmäßig geschlossen und offen trotzdem kompakt;
+  seltene lokale Reset-/Löschaktionen bleiben sekundär;
 - Root-Overflow **und** Clipping sichtbarer Elemente prüfen;
 - Dialoginhalt und Aktionsleiste intern auf Reflow prüfen;
 - `prefers-reduced-motion`, Tastatur, Fokus und No-Login beibehalten.
