@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "id": "public-app-essentials/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "status": "stable",
   "purpose": "shared-startup-privacy-share-date-and-place-interactions",
   "delivery": {
@@ -59,18 +59,26 @@
       "required": true,
       "modes": ["no-cookies", "essential-only"],
       "optionalTrackingAllowed": false,
-      "fakeConsentForbidden": true
+      "fakeConsentForbidden": true,
+      "noCookiesBehavior": "no-banner-no-dismiss-state-persistent-consumer-info",
+      "essentialOnlyBehavior": "informational-dismissible-not-consent"
     },
     "share": {
       "required": true,
       "nativeApi": "navigator.share",
       "fallback": "clipboard",
-      "secureContextRequiredForNative": true
+      "secureContextRequiredForNative": true,
+      "nativeSuccessFeedback": "silent",
+      "nativeAbortFeedback": "silent",
+      "fallbackFeedback": "transient-overlay",
+      "stableOuterDimensionsRequired": true
     },
     "datePicker": {
       "optional": true,
       "implementation": "native-date-input-plus-year-jump",
-      "isoValue": "YYYY-MM-DD"
+      "isoValue": "YYYY-MM-DD",
+      "reflowBasis": "component-inline-size",
+      "selectInlineEndSafeAreaRequired": true
     },
     "placeSearch": {
       "optional": true,
@@ -79,12 +87,26 @@
       "normalizedResultRequired": true,
       "regionSearchRequired": true,
       "explicitSubmitRequired": true,
-      "publicNominatimAutocompleteForbidden": true
+      "publicNominatimAutocompleteForbidden": true,
+      "defaultMode": "submit-only",
+      "suggestions": {
+        "optional": true,
+        "explicitCapabilityDeclarationRequired": true,
+        "providerCapability": "consumer-autocomplete-proxy",
+        "providerEvidenceRequired": true,
+        "minCharsRange": [2, 6],
+        "debounceMsRange": [200, 1000],
+        "abortRequired": true,
+        "staleResultSuppressionRequired": true,
+        "keyboardNavigationRequired": true
+      },
+      "consumerOwnedBoundaries": ["provider", "rate-limit", "cache", "attribution", "time-zone"]
     }
   },
   "quality": {
     "languages": ["de", "en"],
     "controlsMinTargetPx": 44,
+    "selectInlineEndSafeAreaMinRem": 2.25,
     "startupIconMaxPx": 56,
     "startupIconMaxViewportRatio": 0.18,
     "horizontalOverflowAllowed": false,

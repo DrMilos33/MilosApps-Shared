@@ -1,7 +1,7 @@
 {
   "name": "milosapps-shared",
   "private": true,
-  "version": "3.0.0",
+  "version": "3.1.0",
   "type": "module",
   "scripts": {
     "test:v1": "powershell -NoProfile -ExecutionPolicy Bypass -File contracts/public-app-shell/v1/validate.ps1",

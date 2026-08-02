@@ -1,15 +1,15 @@
 {
   "contract": "public-app-essentials/v1",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "sharedCommit": "0000000000000000000000000000000000000000",
   "appKey": "reference-app",
   "manifest": "essentials-manifest.json",
   "vendorDirectory": "vendor/milosapps-essentials/v1",
   "artifacts": {
-    "milos-app-essentials.css": "sha256:a4288a19fb8d798b4d1c4e68bfdf04493bd73e4f445602eb3b54cbb594c732a6",
+    "milos-app-essentials.css": "sha256:9d3e266ff5196bbff9d312eb2f4df8746e468c45ed6f34ac5cdc05a93689b5b7",
     "milos-app-essentials-theme.css": "sha256:19879a565def4b5e8bc5243d7e34fe58ae09b9a8d9507fb4a75bfbc1c3d6f543",
-    "milos-app-essentials.js": "sha256:1657f7e44939953c7199e215dabb0cda48bd22172c4578df5298bfc1b688a985",
-    "bootstrap.js": "sha256:0a7478f4938e7a8765613409a0dc01e36f60b77866ddf554b408dccb0e09f3ce",
-    "verify.mjs": "sha256:3e52588cab3770b932b672e32f7865438876b4f8a842b52b99db97f2851d077c"
+    "milos-app-essentials.js": "sha256:b14c887819d30265e8f17091d45595fdf726443529421fca6e0022b3b512c07e",
+    "bootstrap.js": "sha256:c5741362af628b71fb9de92d77c495e99c2ed7e89427b281fd030651269ba026",
+    "verify.mjs": "sha256:1b762efefd8d35493ae9c5d33df4ad5e95da263bee417128c319a92285917f81"
   }
 }

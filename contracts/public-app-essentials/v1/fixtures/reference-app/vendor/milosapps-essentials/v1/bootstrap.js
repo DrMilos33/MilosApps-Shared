@@ -21,10 +21,17 @@ export const milosAppEssentials = initMilosAppEssentials({
   },
   "features": {
     "startup": true,
-    "privacyNotice": true,
+    "privacyNotice": false,
     "share": true,
     "datePicker": true,
-    "placeSearch": true
+    "placeSearch": true,
+    "placeSuggestions": {
+      "enabled": false,
+      "minChars": 3,
+      "debounceMs": 350,
+      "providerCapability": "submit-only",
+      "evidenceFile": null
+    }
   }
 });
 globalThis.milosAppEssentials = milosAppEssentials;

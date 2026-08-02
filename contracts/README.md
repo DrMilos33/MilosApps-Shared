@@ -34,6 +34,9 @@ Vertragsversion.
   Nutzerreview.
 - [`public-app-essentials/v1`](public-app-essentials/v1/README.md):
   dependency-freie, lokal vendorte Bausteine für Loading Screen,
-  Datenschutz-/Cookiehinweis, Teilen, native Datumsauswahl und providerneutrale
-  Ort-/Regionssuche. Der Vertrag erzwingt explizite App-Bereitschaft,
-  Same-Origin-CSP, Lock/Hashes und wahrheitsgemäße Trackinggrenzen.
+  wahrheitsgemäße Datenschutzmodi, layoutstabiles Teilen, native Datumsauswahl
+  und providerneutrale Ort-/Regionssuche. Version 1.1.0 ergänzt
+  komponentenbreitenabhängigen Reflow, Select-Pfeilabstand sowie einen
+  nachweispflichtigen Suggestions-Opt-in. Der Vertrag erzwingt explizite
+  App-Bereitschaft, Same-Origin-CSP, Lock/Hashes und wahrheitsgemäße
+  Trackinggrenzen.

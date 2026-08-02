@@ -24,10 +24,17 @@
   },
   "features": {
     "startup": true,
-    "privacyNotice": true,
+    "privacyNotice": false,
     "share": true,
     "datePicker": true,
-    "placeSearch": true
+    "placeSearch": true,
+    "placeSuggestions": {
+      "enabled": false,
+      "minChars": 3,
+      "debounceMs": 350,
+      "providerCapability": "submit-only",
+      "evidenceFile": null
+    }
   },
   "theme": {
     "accent": "#6f56a8",
@@ -41,7 +48,7 @@
   },
   "essentialsContract": {
     "id": "public-app-essentials/v1",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "sharedCommit": "0000000000000000000000000000000000000000",
     "vendorDirectory": "vendor/milosapps-essentials/v1"
   }

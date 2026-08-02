@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## public-app-essentials 1.1.0 – 2026-08-03
+
+- Datenschutzmodi präzisiert: `no-cookies` erzeugt weder Banner noch
+  Dismiss-/Consent-Zustand; `essential-only` zeigt ausschließlich einen
+  schließbaren Sachhinweis ohne Akzeptieren-/Ablehnen-Simulation.
+- Share-Rückmeldung ohne Layoutverschiebung: natives Teilen und Abbruch bleiben
+  visuell still, Clipboard-/Fehlerstatus erscheint kurz als Overlay.
+- Datumsauswahl reflowt nach Komponentenbreite, behält 44-Pixel-Ziele und
+  reserviert im Select einen festen Inline-Endbereich für den nativen Pfeil.
+- Ortssuche bleibt standardmäßig submit-only. Vorschläge sind ein expliziter
+  Opt-in mit Mindestzeichen, Debounce, Abort, Stale-Result-Schutz,
+  Tastaturführung und app-eigenem Proxy-/Provider-Nachweis; direktes
+  öffentliches Nominatim-Autocomplete bleibt verboten.
+- JSON-Vertrags- und Lockdateien für Essentials v1 werden im Shared-Repository
+  explizit mit LF ausgecheckt; Verbraucher behalten zusätzlich ihre enge
+  vendorlokale LF-Regel.
+
+## public-app-essentials 1.0.0 – 2026-08-02
+
 - `public-app-essentials/v1.0.0` vorbereitet: begrenzter CSS-first Loading
   Screen, wahrheitsgemäßer Datenschutz-/Cookiehinweis ohne Scheinwahl,
   einheitliches Teilen mit Web-Share-/Clipboard-Fallback, native Datumsauswahl

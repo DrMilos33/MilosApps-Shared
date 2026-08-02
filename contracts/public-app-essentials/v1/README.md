@@ -1,6 +1,6 @@
 # public-app-essentials/v1
 
-Version `1.0.0` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
+Version `1.1.0` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
 MilosApps: einen begrenzten Startzustand, einen wahrheitsgemäßen
 Datenschutzhinweis, Teilen, Datumsauswahl und Ort-/Regionssuche. Der Vertrag ist
 frameworkneutral und dependency-frei. Er ersetzt weder
@@ -47,7 +47,7 @@ ausgeliefert. `data:`-Re-Inlining ist unter `style-src 'self'` unzulässig.
      <div data-milos-loading-card>
        <img data-milos-loading-icon src="icon.svg" width="52" height="52" alt="">
        <span data-milos-loading-brand>MilosApps</span>
-       <h1 data-milos-loading-title>App-Name</h1>
+       <p data-milos-loading-title>App-Name</p>
        <p data-milos-loading-message>App wird geöffnet …</p>
        <span data-milos-loading-progress aria-hidden="true"></span>
      </div>
@@ -70,21 +70,26 @@ ausgeliefert. `data:`-Re-Inlining ist unter `style-src 'self'` unzulässig.
      --app-root . --manifest milos-essentials.json
    ```
 
-## Datenschutz statt Scheinwahl
+## Datenschutz ohne Scheinwahl
 
 Aktuelle öffentliche MilosApps verwenden keine Werbe- oder Tracking-Cookies.
-Deshalb erzeugt v1 **kein Einwilligungsbanner mit wirkungslosen
-„Akzeptieren/Ablehnen“-Schaltflächen**. Stattdessen erscheint einmalig ein
-kompakter, schließbarer Datenschutzhinweis mit Link zur Datenschutzerklärung.
+Deshalb erzeugt v1.1 **kein Einwilligungsbanner mit wirkungslosen
+„Akzeptieren/Ablehnen“-Schaltflächen** und simuliert keine optionalen Cookies.
+Das Verhalten folgt der im Manifest belegten technischen Realität:
 
-- `no-cookies`: keine Cookies; optionale lokale Einstellungen können
-  wahrheitsgemäß genannt werden.
-- `essential-only`: nur technisch erforderliche Speicherung; kein Tracking.
+- `no-cookies`: kein Banner und kein gemeinsamer Dismiss-/Consent-Zustand. Die
+  App hält ihre wahrheitsgemäße Datenschutzinformation dauerhaft erreichbar,
+  markiert den Link mit `data-milos-privacy-info` und nennt dort optionale
+  lokale Einstellungen.
+- `essential-only`: ein kompakter Sachhinweis zu technisch notwendigen Cookies,
+  kein Einwilligungsdialog. Die einzige Aktion schließt den Hinweis; sie heißt
+  weder „Akzeptieren“ noch „Verstanden“. Datenschutz bleibt zusätzlich über
+  den normalen App-/Portalweg erreichbar.
 - `optionalTracking` muss `false` sein. Ein späteres Analyseprodukt benötigt
   einen neuen geprüften Consent-Vertrag und ist nicht durch v1 freigegeben.
 
-Die Speicherung des geschlossenen Hinweiszustands ist lokaler Komfort und darf
-keine Identität oder geräteübergreifende Profilbildung erzeugen.
+Nur `essential-only` darf den geschlossenen Informationszustand als lokalen
+Komfort speichern. `no-cookies` erzeugt dafür ausdrücklich keinen Schlüssel.
 
 ## Teilen
 
@@ -101,8 +106,10 @@ document.querySelector("milos-share-button").setPayloadProvider(() => ({
 }));
 ```
 
-Teilen ist eine bewusste Nutzeraktion. Abbruch des nativen Share-Dialogs ist
-kein Fehlerzustand.
+Teilen ist eine bewusste Nutzeraktion. Erfolgreiches natives Teilen und der
+Abbruch des nativen Dialogs bleiben visuell still. Nur Clipboard-Fallback oder
+Fehler erscheinen kurz als absolut positionierte Statusblase; die äußeren Maße
+des Share-Controls und seines Elternlayouts bleiben dabei unverändert.
 
 ## Datum
 
@@ -119,6 +126,11 @@ Darstellung und Ereignis vereinheitlicht werden.
 Der ISO-Wert `YYYY-MM-DD` wird als `milosapps:datechange` und normales
 `change`-Ereignis ausgegeben. Die App bleibt Eigentümerin von Fachgrenzen wie
 Zeitzone, historischer Gültigkeit und erlaubtem Zeitraum.
+
+Der Reflow richtet sich nach der tatsächlichen Komponentenbreite, nicht nur
+nach dem Browserfenster. Datum, Jahressprung und Heute überlappen deshalb auch
+in einer schmalen Seitenleiste nicht. Alle Ziele bleiben 44 px hoch; Selects
+reservieren am Inline-Ende 2,25 rem für den nativen Pfeil und längere Werte.
 
 ## Ort und Region
 
@@ -141,15 +153,35 @@ Attribution sowie eine austauschbare Verbindung. Apps müssen außerdem ihre
 fachlichen Suchgrenzen beibehalten; ein Wetterort und ein astronomischer Ort
 dürfen dasselbe UI/Ergebnisformat nutzen, ohne ihre Berechnung gleichzusetzen.
 
+### Optionale Vorschläge
+
+`submit-only` bleibt der Standard. Vorschläge während der Eingabe werden nur
+aktiviert, wenn das Manifest `placeSuggestions.enabled=true`, Mindestzeichen
+und Debounce deklariert sowie `providerCapability` auf
+`consumer-autocomplete-proxy` setzt. Zusätzlich nennt `evidenceFile` einen
+app-eigenen Nachweis und die Integration registriert ausdrücklich
+`setSuggestionsProvider(...)`.
+
+Der Baustein übernimmt Debounce, Abbruch vorheriger Anfragen, Unterdrückung
+veralteter Antworten und Tastaturführung. Provider, Rate-Limit, Cache,
+Attribution und Zeitzone bleiben App-Eigentum. Direktes Autocomplete gegen
+`nominatim.openstreetmap.org` wird vom Verifier abgelehnt; öffentliches
+Nominatim bleibt submit-only.
+
 ## Pflicht-QA pro Verbraucher
 
 - frischer Start und langsamer Start: Icon höchstens 56 px Desktop / 48 px
   mobil, kein ungestylter Shell-Icon-Flash;
-- Datenschutzhinweis in DE/EN, Tastatur, Link, erneuter Start nach Schließen;
-- Teilen nativ sowie Clipboard-Fallback und abgebrochener Dialog;
-- Datum: native Eingabe, Jahressprung, Heute, Min/Max und DE/EN;
+- Datenschutzmodus in DE/EN: `no-cookies` ohne Banner/State mit dauerhaftem
+  Link; `essential-only` als Sachhinweis ohne Consent-Sprache;
+- Teilen nativ sowie Clipboard-Fallback und abgebrochener Dialog; keine
+  Layoutverschiebung und keine Erfolgsmeldung nach nativem Teilen;
+- Datum: native Eingabe, Jahressprung, Heute, Min/Max, DE/EN,
+  komponentenbreitenabhängiger Reflow und freier Select-Pfeilbereich;
 - Ort: Stadt **und Region**, gleiches sichtbares Format, Enter/Schaltfläche,
   leere Treffer, Abbruch, Offline-/Netzfehler und optionaler Gerätestandort;
+- optionale Vorschläge: Mindestzeichen, Debounce, Abort, veraltete Antworten,
+  Tastatur sowie app-eigener Proxy-/Provider-Nachweis;
 - 1440 × 900, 390 × 844 und 360 × 800 bei 200 Prozent ohne horizontalen
   Überlauf, mit 44-px-Zielen und sichtbarem Fokus;
 - echte Response-CSP `script-src 'self'; style-src 'self'`, externe Runtime-

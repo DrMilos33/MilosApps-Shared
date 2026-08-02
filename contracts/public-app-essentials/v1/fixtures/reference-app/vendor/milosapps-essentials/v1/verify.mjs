@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const CONSUMERS = new Set([
   "portal",
   "noodle-calculator",
@@ -74,7 +74,20 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   if (manifest.environment === "production" && manifest.productionApproved !== true) fail("Production requires explicit approval");
   if (manifest.privacy?.optionalTracking !== false) fail("optional tracking is forbidden");
   if (!/^https:\/\//.test(manifest.privacy?.privacyUrl || "")) fail("privacy URL must use HTTPS");
-  if (manifest.features?.privacyNotice !== true || manifest.features?.share !== true) fail("privacy notice and share are required");
+  if (manifest.features?.share !== true) fail("share is required");
+  if (manifest.privacy?.mode === "no-cookies" && manifest.features?.privacyNotice !== false) fail("no-cookies requires privacyNotice=false");
+  if (manifest.privacy?.mode === "essential-only" && manifest.features?.privacyNotice !== true) fail("essential-only requires privacyNotice=true");
+  const suggestions = manifest.features?.placeSuggestions;
+  if (!suggestions || !Number.isInteger(suggestions.minChars) || suggestions.minChars < 2 || suggestions.minChars > 6) fail("place suggestions require minChars between 2 and 6");
+  if (!Number.isInteger(suggestions.debounceMs) || suggestions.debounceMs < 200 || suggestions.debounceMs > 1000) fail("place suggestions require debounceMs between 200 and 1000");
+  if (suggestions.enabled === true) {
+    if (manifest.features?.placeSearch !== true) fail("place suggestions require placeSearch=true");
+    if (suggestions.providerCapability !== "consumer-autocomplete-proxy") fail("place suggestions require a consumer autocomplete proxy");
+    if (typeof suggestions.evidenceFile !== "string" || !suggestions.evidenceFile.trim()) fail("place suggestions require provider evidence");
+    await requiredFile(inside(appRoot, path.resolve(appRoot, suggestions.evidenceFile), "suggestions evidence"), "suggestions evidence");
+  } else if (suggestions.enabled !== false || suggestions.providerCapability !== "submit-only" || suggestions.evidenceFile !== null) {
+    fail("disabled place suggestions must remain submit-only without provider evidence");
+  }
 
   const vendorRoot = inside(appRoot, path.resolve(appRoot, manifest.essentialsContract.vendorDirectory), "vendor directory");
   const lock = JSON.parse((await requiredFile(path.join(vendorRoot, "essentials-lock.json"), "essentials lock")).toString("utf8"));
@@ -106,8 +119,15 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   }
   const allSources = [entry, ...integrationSources].join("\n");
   if (!/<milos-share-button(?:\s|>)/i.test(allSources)) fail("shared share control is required");
+  if (manifest.privacy?.mode === "no-cookies") {
+    if (!/data-milos-privacy-info/i.test(allSources) || !allSources.includes(manifest.privacy.privacyUrl)) fail("no-cookies requires persistent consumer-owned privacy information");
+  }
   if (manifest.features?.datePicker && !/<milos-date-picker(?:\s|>)/i.test(allSources)) fail("enabled date picker is missing");
   if (manifest.features?.placeSearch && !/<milos-place-search(?:\s|>)/i.test(allSources)) fail("enabled place search is missing");
+  if (suggestions.enabled) {
+    if (!/setSuggestionsProvider\s*\(/.test(allSources)) fail("enabled place suggestions require an app-owned suggestions provider");
+    if (/nominatim\.openstreetmap\.org/i.test(allSources)) fail("public Nominatim autocomplete is forbidden");
+  }
 
   if (manifest.features?.startup) {
     for (const marker of ["data-milos-app-loading", "data-milos-loading-card", "data-milos-loading-icon", "data-milos-loading-title", "data-milos-loading-message", "data-milos-loading-progress"]) {

@@ -52,14 +52,58 @@
     "features": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["startup", "privacyNotice", "share", "datePicker", "placeSearch"],
+      "required": ["startup", "privacyNotice", "share", "datePicker", "placeSearch", "placeSuggestions"],
       "properties": {
         "startup": { "type": "boolean" },
-        "privacyNotice": { "const": true },
+        "privacyNotice": { "type": "boolean" },
         "share": { "const": true },
         "datePicker": { "type": "boolean" },
-        "placeSearch": { "type": "boolean" }
-      }
+        "placeSearch": { "type": "boolean" },
+        "placeSuggestions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "minChars", "debounceMs", "providerCapability", "evidenceFile"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minChars": { "type": "integer", "minimum": 2, "maximum": 6 },
+            "debounceMs": { "type": "integer", "minimum": 200, "maximum": 1000 },
+            "providerCapability": { "enum": ["submit-only", "consumer-autocomplete-proxy"] },
+            "evidenceFile": {
+              "type": ["string", "null"],
+              "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.(?:md|json)$"
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "placeSuggestions": { "properties": { "enabled": { "const": true } } } } },
+          "then": {
+            "properties": {
+              "placeSearch": { "const": true },
+              "placeSuggestions": {
+                "properties": {
+                  "providerCapability": { "const": "consumer-autocomplete-proxy" },
+                  "evidenceFile": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "placeSuggestions": { "properties": { "enabled": { "const": false } } } } },
+          "then": {
+            "properties": {
+              "placeSuggestions": {
+                "properties": {
+                  "providerCapability": { "const": "submit-only" },
+                  "evidenceFile": { "const": null }
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "theme": {
       "type": "object",
@@ -82,7 +126,7 @@
       "required": ["id", "version", "sharedCommit", "vendorDirectory"],
       "properties": {
         "id": { "const": "public-app-essentials/v1" },
-        "version": { "const": "1.0.0" },
+        "version": { "const": "1.1.0" },
         "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" }
       }
@@ -96,6 +140,14 @@
     {
       "if": { "properties": { "environment": { "const": "dev" } } },
       "then": { "properties": { "productionApproved": { "const": false } } }
+    },
+    {
+      "if": { "properties": { "privacy": { "properties": { "mode": { "const": "no-cookies" } } } } },
+      "then": { "properties": { "features": { "properties": { "privacyNotice": { "const": false } } } } }
+    },
+    {
+      "if": { "properties": { "privacy": { "properties": { "mode": { "const": "essential-only" } } } } },
+      "then": { "properties": { "features": { "properties": { "privacyNotice": { "const": true } } } } }
     }
   ]
 }

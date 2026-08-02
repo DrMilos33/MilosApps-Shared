@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const CONSUMERS = new Set([
   "portal",
   "noodle-calculator",
@@ -84,7 +84,19 @@ function validateManifest(manifest, sourceCommit, fixture) {
   if (manifest.privacy?.mode !== "no-cookies" && manifest.privacy?.mode !== "essential-only") fail("unsupported privacy mode");
   if (manifest.privacy?.optionalTracking !== false) fail("optional tracking is forbidden");
   if (!/^https:\/\//.test(manifest.privacy?.privacyUrl || "")) fail("privacyUrl must use HTTPS");
-  if (manifest.features?.privacyNotice !== true || manifest.features?.share !== true) fail("privacy notice and share are required");
+  if (manifest.features?.share !== true) fail("share is required");
+  if (manifest.privacy.mode === "no-cookies" && manifest.features?.privacyNotice !== false) fail("no-cookies requires privacyNotice=false");
+  if (manifest.privacy.mode === "essential-only" && manifest.features?.privacyNotice !== true) fail("essential-only requires privacyNotice=true");
+  const suggestions = manifest.features?.placeSuggestions;
+  if (!suggestions || !Number.isInteger(suggestions.minChars) || suggestions.minChars < 2 || suggestions.minChars > 6) fail("place suggestions require minChars between 2 and 6");
+  if (!Number.isInteger(suggestions.debounceMs) || suggestions.debounceMs < 200 || suggestions.debounceMs > 1000) fail("place suggestions require debounceMs between 200 and 1000");
+  if (suggestions.enabled === true) {
+    if (manifest.features?.placeSearch !== true) fail("place suggestions require placeSearch=true");
+    if (suggestions.providerCapability !== "consumer-autocomplete-proxy") fail("place suggestions require a consumer autocomplete proxy");
+    if (typeof suggestions.evidenceFile !== "string" || !suggestions.evidenceFile.trim()) fail("place suggestions require provider evidence");
+  } else if (suggestions.enabled !== false || suggestions.providerCapability !== "submit-only" || suggestions.evidenceFile !== null) {
+    fail("disabled place suggestions must remain submit-only without provider evidence");
+  }
   if (!manifest.loading?.appName?.trim() || !manifest.loading?.message?.de?.trim() || !manifest.loading?.message?.en?.trim()) fail("loading copy is required in DE and EN");
   for (const key of Object.keys(THEME_PROPERTIES)) safeThemeValue(manifest.theme?.[key], key);
 }
