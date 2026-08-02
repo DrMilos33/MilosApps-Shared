@@ -24,3 +24,5 @@ jobs:
         run: node contracts/public-app-shell/v2/tools/validate.mjs
       - name: Validate public app layout v1
         run: node contracts/public-app-layout/v1/tools/validate.mjs
+      - name: Validate public app essentials v1
+        run: node contracts/public-app-essentials/v1/tools/validate.mjs

@@ -1,0 +1,99 @@
+{
+  "$schema": "./schema.json",
+  "id": "public-app-essentials/v1",
+  "version": "1.0.0",
+  "status": "stable",
+  "purpose": "shared-startup-privacy-share-date-and-place-interactions",
+  "delivery": {
+    "format": "dependency-free-es-module-and-css",
+    "mode": "pinned-build-time-vendor",
+    "cdnAllowed": false,
+    "crossRepositoryRuntimeImportAllowed": false,
+    "lockRequired": true,
+    "sha256Required": true,
+    "runtimeDependency": false,
+    "runtimeAssets": [
+      {
+        "file": "milos-app-essentials.css",
+        "relativeUrl": "./milos-app-essentials.css",
+        "contentType": "text/css; charset=utf-8"
+      },
+      {
+        "file": "milos-app-essentials-theme.css",
+        "relativeUrl": "./milos-app-essentials-theme.css",
+        "contentType": "text/css; charset=utf-8"
+      },
+      {
+        "file": "milos-app-essentials.js",
+        "relativeUrl": "./milos-app-essentials.js",
+        "contentType": "text/javascript; charset=utf-8"
+      },
+      {
+        "file": "bootstrap.js",
+        "relativeUrl": "./bootstrap.js",
+        "contentType": "text/javascript; charset=utf-8"
+      }
+    ]
+  },
+  "eligibleConsumers": [
+    "portal",
+    "noodle-calculator",
+    "sky",
+    "cloud-post",
+    "somewhere-now",
+    "gravity-loop",
+    "waste-guide",
+    "daylight"
+  ],
+  "excludedConsumers": ["calendar"],
+  "excludedClasses": ["login-required-app"],
+  "modules": {
+    "startup": {
+      "requiredForPublicApps": true,
+      "iconMaxPx": 56,
+      "iconMaxMobilePx": 48,
+      "readyEvent": "milosapps:ready",
+      "failureMode": "remain-visible-until-app-signals-ready"
+    },
+    "privacyNotice": {
+      "required": true,
+      "modes": ["no-cookies", "essential-only"],
+      "optionalTrackingAllowed": false,
+      "fakeConsentForbidden": true
+    },
+    "share": {
+      "required": true,
+      "nativeApi": "navigator.share",
+      "fallback": "clipboard",
+      "secureContextRequiredForNative": true
+    },
+    "datePicker": {
+      "optional": true,
+      "implementation": "native-date-input-plus-year-jump",
+      "isoValue": "YYYY-MM-DD"
+    },
+    "placeSearch": {
+      "optional": true,
+      "implementation": "provider-neutral-accessible-combobox",
+      "providerOwnedByConsumer": true,
+      "normalizedResultRequired": true,
+      "regionSearchRequired": true,
+      "explicitSubmitRequired": true,
+      "publicNominatimAutocompleteForbidden": true
+    }
+  },
+  "quality": {
+    "languages": ["de", "en"],
+    "controlsMinTargetPx": 44,
+    "startupIconMaxPx": 56,
+    "startupIconMaxViewportRatio": 0.18,
+    "horizontalOverflowAllowed": false,
+    "reducedMotionRequired": true,
+    "strictSameOriginCspRequired": true,
+    "externalRuntimeAssetsMustRemainExternalAfterBuild": true,
+    "desktopViewport": "1440x900",
+    "mobileViewport": "390x844",
+    "zoomViewport": "360x800@200%",
+    "productionApproved": false
+  }
+}

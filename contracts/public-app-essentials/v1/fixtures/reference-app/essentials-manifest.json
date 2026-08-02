@@ -1,0 +1,48 @@
+{
+  "$schema": "../../essentials-manifest.schema.json",
+  "appKey": "reference-app",
+  "ownerTask": "MilosApps – Referenz",
+  "public": true,
+  "loginRequired": false,
+  "environment": "dev",
+  "productionApproved": false,
+  "entryHtml": "index.html",
+  "integrationFiles": ["index.html", "app.js"],
+  "loading": {
+    "appName": "Reiseplaner",
+    "iconPath": "icon.svg",
+    "message": {
+      "de": "Reiseplaner wird geöffnet …",
+      "en": "Opening trip planner …"
+    }
+  },
+  "privacy": {
+    "mode": "no-cookies",
+    "usesLocalStorage": true,
+    "optionalTracking": false,
+    "privacyUrl": "https://dev.milos-apps.de/datenschutz"
+  },
+  "features": {
+    "startup": true,
+    "privacyNotice": true,
+    "share": true,
+    "datePicker": true,
+    "placeSearch": true
+  },
+  "theme": {
+    "accent": "#6250a4",
+    "accentContrast": "#ffffff",
+    "surface": "#ffffff",
+    "surfaceSoft": "#f4f2f8",
+    "text": "#211d29",
+    "muted": "#645e6d",
+    "border": "#d9d3e1",
+    "focus": "#a33b00"
+  },
+  "essentialsContract": {
+    "id": "public-app-essentials/v1",
+    "version": "1.0.0",
+    "sharedCommit": "0000000000000000000000000000000000000000",
+    "vendorDirectory": "vendor/milosapps-essentials/v1"
+  }
+}

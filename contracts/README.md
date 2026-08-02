@@ -32,3 +32,8 @@ Vertragsversion.
   Intro-Icon und setzt mehrere Flowspalten nur per explizitem Opt-in. Der erste
   Verbraucher ist ausschließlich Wolkenpost; weitere Apps warten auf
   Nutzerreview.
+- [`public-app-essentials/v1`](public-app-essentials/v1/README.md):
+  dependency-freie, lokal vendorte Bausteine für Loading Screen,
+  Datenschutz-/Cookiehinweis, Teilen, native Datumsauswahl und providerneutrale
+  Ort-/Regionssuche. Der Vertrag erzwingt explizite App-Bereitschaft,
+  Same-Origin-CSP, Lock/Hashes und wahrheitsgemäße Trackinggrenzen.

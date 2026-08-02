@@ -4,3 +4,7 @@ contracts/public-app-shell/v2/**/*.css text eol=lf
 contracts/public-app-layout/v1/**/*.mjs text eol=lf
 contracts/public-app-layout/v1/**/*.css text eol=lf
 contracts/public-app-layout/v1/**/*.html text eol=lf
+contracts/public-app-essentials/v1/**/*.js text eol=lf
+contracts/public-app-essentials/v1/**/*.mjs text eol=lf
+contracts/public-app-essentials/v1/**/*.css text eol=lf
+contracts/public-app-essentials/v1/**/*.html text eol=lf

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Reiseplaner – MilosApps</title>
+    <link rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials.css">
+    <link rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials-theme.css">
+    <link rel="stylesheet" href="app.css">
+  </head>
+  <body data-milos-essentials-loading>
+    <section data-milos-app-loading role="status" aria-live="polite">
+      <div data-milos-loading-card>
+        <img data-milos-loading-icon src="icon.svg" width="52" height="52" alt="">
+        <span data-milos-loading-brand>MilosApps</span>
+        <h1 data-milos-loading-title>Reiseplaner</h1>
+        <p data-milos-loading-message>Reiseplaner wird geöffnet …</p>
+        <span data-milos-loading-progress aria-hidden="true"></span>
+      </div>
+    </section>
+
+    <main>
+      <h1>Reise planen</h1>
+      <p>Ein minimales Referenzbeispiel für gemeinsame Interaktionen.</p>
+      <milos-date-picker label-de="Reisedatum" label-en="Travel date" min="1900-01-01" max="2100-12-31"></milos-date-picker>
+      <milos-place-search label-de="Zielort oder Region" label-en="Destination or region"></milos-place-search>
+      <milos-share-button primary></milos-share-button>
+    </main>
+
+    <script type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

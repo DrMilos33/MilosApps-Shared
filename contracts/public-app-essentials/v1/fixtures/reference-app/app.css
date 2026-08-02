@@ -1,0 +1,4 @@
+html { color-scheme: light; background: #f4f2f8; }
+body { min-width: 0; margin: 0; color: #211d29; background: #f4f2f8; font-family: system-ui, sans-serif; }
+main { width: min(calc(100% - 2rem), 44rem); margin: 0 auto; padding: 3rem 0; display: grid; gap: 1.25rem; }
+h1, p { margin: 0; }

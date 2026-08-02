@@ -25,6 +25,12 @@ Integrationsverträge.
   Zwei-Spalten-Flows zum bewussten Opt-in. Lokale CSS-Artefakte, app-eigene
   Farbtokens, Sync, SHA-256-Lock und Validator bleiben erhalten. `cloud-post`
   ist der einzige Pilot bis zum Nutzerreview.
+- [`public-app-essentials/v1`](contracts/public-app-essentials/v1/README.md):
+  allgemeiner, CSP-sicher vendorter Interaktionsbaukasten für einen begrenzten
+  Loading Screen, wahrheitsgemäßen Datenschutz-/Cookiehinweis, Teilen, native
+  Datumsauswahl mit Jahressprung und eine providerneutrale Ort-/Regionssuche.
+  Die Module werden einzeln aktiviert; Kalender und Login-Apps sind
+  ausgeschlossen.
 
 ## Konsummodell
 
@@ -45,6 +51,12 @@ gibt weiterhin kein CDN und keinen appübergreifenden Runtime-Import.
 Hauptinhalt. Der Vertrag erzeugt keine gemeinsame Runtime und vereinheitlicht
 weder Fachfunktion noch App-Identität. Jede App übernimmt ihn bewusst und
 app-eigen; ein Pilot in Wolkenpost geht jedem weiteren Rollout voraus.
+
+`public-app-essentials/v1` ergänzt Shell und Layout um wiederkehrende
+Interaktionen. Die Browserartefakte werden ebenfalls in jedes Verbraucher-Repo
+kopiert und zusammen mit app-eigenem Theme und Verifier gelockt. Ortssuche
+vereinheitlicht UI und Ergebnisformat, nicht den externen Anbieter oder die
+fachliche Interpretation eines Ortes.
 
 Es wurden bewusst noch keine Assets aus bestehenden Apps kopiert. Vor der ersten
 Übernahme werden Quelle, Lizenz, Varianten, Barrierefreiheit und bestehende

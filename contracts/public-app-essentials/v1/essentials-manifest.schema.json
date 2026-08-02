@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milos-apps.de/contracts/public-app-essentials/v1/essentials-manifest.schema.json",
+  "title": "MilosApps public app essentials manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["appKey", "ownerTask", "public", "loginRequired", "environment", "productionApproved", "entryHtml", "integrationFiles", "loading", "privacy", "features", "theme", "essentialsContract"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "appKey": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "ownerTask": { "type": "string", "minLength": 1 },
+    "public": { "const": true },
+    "loginRequired": { "const": false },
+    "environment": { "enum": ["dev", "production"] },
+    "productionApproved": { "type": "boolean" },
+    "entryHtml": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.html$" },
+    "integrationFiles": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.(?:html|js|mjs|ts|tsx|jsx)$" }
+    },
+    "loading": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["appName", "iconPath", "message"],
+      "properties": {
+        "appName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "iconPath": { "type": "string", "pattern": "^(?!https?:|[A-Za-z]:|/|.*\\.\\.).+\\.svg$" },
+        "message": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["de", "en"],
+          "properties": {
+            "de": { "type": "string", "minLength": 1, "maxLength": 80 },
+            "en": { "type": "string", "minLength": 1, "maxLength": 80 }
+          }
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "usesLocalStorage", "optionalTracking", "privacyUrl"],
+      "properties": {
+        "mode": { "enum": ["no-cookies", "essential-only"] },
+        "usesLocalStorage": { "type": "boolean" },
+        "optionalTracking": { "const": false },
+        "privacyUrl": { "type": "string", "pattern": "^https://" }
+      }
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startup", "privacyNotice", "share", "datePicker", "placeSearch"],
+      "properties": {
+        "startup": { "type": "boolean" },
+        "privacyNotice": { "const": true },
+        "share": { "const": true },
+        "datePicker": { "type": "boolean" },
+        "placeSearch": { "type": "boolean" }
+      }
+    },
+    "theme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["accent", "accentContrast", "surface", "surfaceSoft", "text", "muted", "border", "focus"],
+      "properties": {
+        "accent": { "type": "string", "minLength": 1 },
+        "accentContrast": { "type": "string", "minLength": 1 },
+        "surface": { "type": "string", "minLength": 1 },
+        "surfaceSoft": { "type": "string", "minLength": 1 },
+        "text": { "type": "string", "minLength": 1 },
+        "muted": { "type": "string", "minLength": 1 },
+        "border": { "type": "string", "minLength": 1 },
+        "focus": { "type": "string", "minLength": 1 }
+      }
+    },
+    "essentialsContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "sharedCommit", "vendorDirectory"],
+      "properties": {
+        "id": { "const": "public-app-essentials/v1" },
+        "version": { "const": "1.0.0" },
+        "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "environment": { "const": "production" } } },
+      "then": { "properties": { "productionApproved": { "const": true } } }
+    },
+    {
+      "if": { "properties": { "environment": { "const": "dev" } } },
+      "then": { "properties": { "productionApproved": { "const": false } } }
+    }
+  ]
+}

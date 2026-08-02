@@ -1,0 +1,10 @@
+body[data-milos-essentials-app="reference-app"] {
+  --milos-essential-accent: #6250a4;
+  --milos-essential-accent-contrast: #ffffff;
+  --milos-essential-surface: #ffffff;
+  --milos-essential-surface-soft: #f4f2f8;
+  --milos-essential-text: #211d29;
+  --milos-essential-muted: #645e6d;
+  --milos-essential-border: #d9d3e1;
+  --milos-essential-focus: #a33b00;
+}

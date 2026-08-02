@@ -1,0 +1,48 @@
+{
+  "$schema": "./essentials-manifest.schema.json",
+  "appKey": "reference-app",
+  "ownerTask": "MilosApps – Referenz",
+  "public": true,
+  "loginRequired": false,
+  "environment": "dev",
+  "productionApproved": false,
+  "entryHtml": "index.html",
+  "integrationFiles": ["index.html", "app.js"],
+  "loading": {
+    "appName": "Referenz-App",
+    "iconPath": "icon.svg",
+    "message": {
+      "de": "App wird geöffnet …",
+      "en": "Opening app …"
+    }
+  },
+  "privacy": {
+    "mode": "no-cookies",
+    "usesLocalStorage": true,
+    "optionalTracking": false,
+    "privacyUrl": "https://dev.milos-apps.de/datenschutz"
+  },
+  "features": {
+    "startup": true,
+    "privacyNotice": true,
+    "share": true,
+    "datePicker": true,
+    "placeSearch": true
+  },
+  "theme": {
+    "accent": "#6f56a8",
+    "accentContrast": "#ffffff",
+    "surface": "#ffffff",
+    "surfaceSoft": "#f6f4f8",
+    "text": "#241f2b",
+    "muted": "#665f6f",
+    "border": "#ddd8e3",
+    "focus": "#a33b00"
+  },
+  "essentialsContract": {
+    "id": "public-app-essentials/v1",
+    "version": "1.0.0",
+    "sharedCommit": "0000000000000000000000000000000000000000",
+    "vendorDirectory": "vendor/milosapps-essentials/v1"
+  }
+}

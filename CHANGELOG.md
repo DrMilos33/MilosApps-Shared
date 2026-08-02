@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-- Keine Änderungen.
+- `public-app-essentials/v1.0.0` vorbereitet: begrenzter CSS-first Loading
+  Screen, wahrheitsgemäßer Datenschutz-/Cookiehinweis ohne Scheinwahl,
+  einheitliches Teilen mit Web-Share-/Clipboard-Fallback, native Datumsauswahl
+  mit Jahressprung und providerneutrale Ort-/Regionssuche.
+- App-eigenes Theme, Sync, fünf SHA-256-Lockartefakte, portabler Validator und
+  strikte CSP-Referenz ergänzt. Kalender, Login-Apps und Production bleiben
+  ausgeschlossen.
 
 ## public-app-layout 1.1.0 – 2026-08-02
 

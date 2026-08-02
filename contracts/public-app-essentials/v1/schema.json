@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milos-apps.de/contracts/public-app-essentials/v1/schema.json",
+  "title": "MilosApps Public App Essentials v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "version", "status", "purpose", "delivery", "eligibleConsumers", "excludedConsumers", "excludedClasses", "modules", "quality"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "const": "public-app-essentials/v1" },
+    "version": { "const": "1.0.0" },
+    "status": { "enum": ["draft", "stable", "deprecated"] },
+    "purpose": { "type": "string", "minLength": 1 },
+    "delivery": { "type": "object" },
+    "eligibleConsumers": { "type": "array", "minItems": 8, "uniqueItems": true, "items": { "type": "string" } },
+    "excludedConsumers": { "type": "array", "contains": { "const": "calendar" } },
+    "excludedClasses": { "type": "array", "contains": { "const": "login-required-app" } },
+    "modules": { "type": "object", "required": ["startup", "privacyNotice", "share", "datePicker", "placeSearch"] },
+    "quality": { "type": "object", "required": ["languages", "controlsMinTargetPx", "startupIconMaxPx", "horizontalOverflowAllowed", "reducedMotionRequired", "strictSameOriginCspRequired", "productionApproved"] }
+  }
+}
