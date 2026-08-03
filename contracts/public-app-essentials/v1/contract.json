@@ -12,7 +12,16 @@
     "lockRequired": true,
     "sha256Required": true,
     "manifestSchemaLocked": true,
+    "manifestConfigurationLocked": true,
+    "runtimeBasePathRequired": true,
+    "consumerEntryModuleRequired": true,
     "sourceCommitProvenanceRequired": true,
+    "bootstrapBeforeConsumerModulesRequired": true,
+    "asyncModuleScriptsAllowed": false,
+    "consumerArtifactCount": 6,
+    "releaseSourceArtifactCount": 5,
+    "symlinkedDestinationsForbidden": true,
+    "hardLinkedDestinationsForbidden": true,
     "runtimeDependency": false,
     "runtimeAssets": [
       {
@@ -55,10 +64,16 @@
       "iconMaxPx": 56,
       "iconMaxMobilePx": 48,
       "readyEvent": "milosapps:ready",
+      "readyApi": "globalThis.milosAppEssentials.ready()",
+      "directConsumerEventDispatchAllowed": false,
       "failureMode": "remain-visible-until-app-signals-ready"
     },
     "privacyNotice": {
-      "required": true,
+      "privacyInformationRequired": true,
+      "runtimeNoticeRequiredByMode": {
+        "no-cookies": false,
+        "essential-only": true
+      },
       "modes": ["no-cookies", "essential-only"],
       "optionalTrackingAllowed": false,
       "fakeConsentForbidden": true,
@@ -130,6 +145,7 @@
     "themeColorTokensOnly": true,
     "adaptiveThemeCustomPropertyPattern": "var(--[a-z0-9]+(?:-[a-z0-9]+)*)",
     "commentMarkersDoNotCountAsIntegration": true,
+    "consumerBrowserQaRequired": true,
     "desktopViewport": "1440x900",
     "mobileViewport": "390x844",
     "zoomViewport": "360x800@200%",

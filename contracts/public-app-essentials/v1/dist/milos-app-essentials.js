@@ -55,6 +55,7 @@ const COPY = Object.freeze({
 let activeConfig = null;
 let activeLocale = "de";
 let privacyVisible = false;
+let privacyDismissedForDocument = false;
 
 function normalizeLocale(value) {
   return value === "en" ? "en" : "de";
@@ -62,6 +63,22 @@ function normalizeLocale(value) {
 
 function assertString(value, label) {
   if (typeof value !== "string" || !value.trim()) throw new TypeError(`${label} must be a non-empty string`);
+}
+
+function validHttpsUrl(value) {
+  if (typeof value !== "string" || /\s/.test(value)) return false;
+  try {
+    const parsed = new URL(value);
+    const hostname = parsed.hostname.replace(/\.$/, "");
+    const labels = hostname.split(".");
+    return parsed.protocol === "https:"
+      && labels.length >= 2
+      && labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+      && !parsed.username
+      && !parsed.password;
+  } catch {
+    return false;
+  }
 }
 
 function normalizeStoragePurposes(input, appKey, usesLocalStorage) {
@@ -89,7 +106,7 @@ function normalizeConfig(input) {
   if (input.environment === "production" && input.productionApproved !== true) throw new TypeError("Production requires explicit approval");
   if (input.privacy?.mode !== "no-cookies" && input.privacy?.mode !== "essential-only") throw new TypeError("Unsupported privacy mode");
   if (input.privacy?.optionalTracking !== false) throw new TypeError("Optional tracking is forbidden by public-app-essentials/v1");
-  if (!/^https:\/\//.test(input.privacy?.privacyUrl || "")) throw new TypeError("privacyUrl must use HTTPS");
+  if (!validHttpsUrl(input.privacy?.privacyUrl)) throw new TypeError("privacyUrl must be an absolute HTTPS URL with a valid host and no credentials");
   const usesLocalStorage = input.privacy.usesLocalStorage === true;
   const storagePurposes = normalizeStoragePurposes(input.privacy.storagePurposes, input.appKey, usesLocalStorage);
   if (input.features?.startup !== true) throw new TypeError("Startup is required for public apps");
@@ -181,7 +198,7 @@ function updatePrivacyCopy() {
 
 function showPrivacyNotice() {
   if (activeConfig?.privacy?.mode === "no-cookies") return;
-  if (!activeConfig?.features?.privacyNotice || privacyVisible) return;
+  if (!activeConfig?.features?.privacyNotice || privacyVisible || privacyDismissedForDocument) return;
   privacyVisible = true;
   const notice = document.createElement("aside");
   notice.dataset.milosPrivacyNotice = "";
@@ -208,6 +225,7 @@ function showPrivacyNotice() {
   dismiss.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" stroke-linecap="round"/></svg>';
   dismiss.addEventListener("click", () => {
     privacyVisible = false;
+    privacyDismissedForDocument = true;
     notice.remove();
   });
   actions.append(privacyLink, dismiss);
@@ -355,8 +373,21 @@ function isoToday() {
   return local.toISOString().slice(0, 10);
 }
 
+function validIsoDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+  if (!match) return false;
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const calendar = new Date(0);
+  calendar.setUTCHours(0, 0, 0, 0);
+  calendar.setUTCFullYear(year, month - 1, day);
+  return calendar.getUTCFullYear() === year && calendar.getUTCMonth() === month - 1 && calendar.getUTCDate() === day;
+}
+
 function clampIsoDate(value, min, max) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return "";
+  if (!validIsoDate(value)) return "";
   if (min && value < min) return min;
   if (max && value > max) return max;
   return value;
@@ -365,7 +396,10 @@ function clampIsoDate(value, min, max) {
 function replaceYear(value, year) {
   const [oldYear, month, day] = value.split("-").map(Number);
   if (![oldYear, month, day, year].every(Number.isFinite)) return value;
-  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const calendar = new Date(0);
+  calendar.setUTCHours(0, 0, 0, 0);
+  calendar.setUTCFullYear(year, month, 0);
+  const lastDay = calendar.getUTCDate();
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
 }
 
@@ -402,6 +436,10 @@ export class MilosDatePicker extends HTMLElement {
     input.value = this.currentValue;
     const year = document.createElement("select");
     year.dataset.milosDateYear = "";
+    const emptyYear = document.createElement("option");
+    emptyYear.value = "";
+    emptyYear.textContent = "—";
+    year.append(emptyYear);
     const firstYear = Number(this.min.slice(0, 4));
     const lastYear = Number(this.max.slice(0, 4));
     for (let value = lastYear; value >= firstYear; value -= 1) {
@@ -415,7 +453,15 @@ export class MilosDatePicker extends HTMLElement {
     today.type = "button";
     today.dataset.milosDateToday = "";
     input.addEventListener("change", (event) => { event.stopPropagation(); this.commit(input.value, input, year); });
-    year.addEventListener("change", (event) => { event.stopPropagation(); this.commit(replaceYear(input.value || this.currentValue, Number(year.value)), input, year); });
+    year.addEventListener("change", (event) => {
+      event.stopPropagation();
+      if (!year.value) {
+        this.commit("", input, year);
+        return;
+      }
+      const base = input.value || this.currentValue || clampIsoDate(isoToday(), this.min, this.max);
+      this.commit(replaceYear(base, Number(year.value)), input, year);
+    });
     today.addEventListener("click", () => this.commit(clampIsoDate(isoToday(), this.min, this.max), input, year));
     row.append(input, year, today);
     const note = document.createElement("p");
@@ -428,12 +474,23 @@ export class MilosDatePicker extends HTMLElement {
   }
 
   commit(value, input = this.input, year = this.yearSelect) {
-    const normalized = clampIsoDate(value, this.min, this.max);
-    if (!normalized) return;
+    const requested = String(value || "");
+    const normalized = clampIsoDate(requested, this.min, this.max);
+    if (requested && !normalized) {
+      input.value = this.currentValue || "";
+      year.value = this.currentValue?.slice(0, 4) || "";
+      return;
+    }
+    if (normalized === (this.currentValue || "")) {
+      input.value = normalized;
+      year.value = normalized.slice(0, 4);
+      return;
+    }
     this.currentValue = normalized;
     input.value = normalized;
     year.value = normalized.slice(0, 4);
-    this.setAttribute("value", normalized);
+    if (normalized) this.setAttribute("value", normalized);
+    else this.removeAttribute("value");
     this.dispatchEvent(new CustomEvent("milosapps:datechange", { detail: Object.freeze({ value: normalized }), bubbles: true, composed: true }));
     this.dispatchEvent(new Event("change", { bubbles: true }));
   }
@@ -544,7 +601,7 @@ export class MilosPlaceSearch extends HTMLElement {
     const locate = document.createElement("button");
     locate.type = "button";
     locate.dataset.milosPlaceLocate = "";
-    locate.hidden = true;
+    locate.hidden = !this.locateProvider;
     const results = document.createElement("div");
     results.id = listId;
     results.dataset.milosPlaceResults = "";
@@ -835,7 +892,10 @@ export function markMilosAppReady() {
 
 export function initMilosAppEssentials(config) {
   activeConfig = normalizeConfig(config);
-  if (activeConfig.privacy.usesLocalStorage) storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`);
+  if (activeConfig.privacy.usesLocalStorage) {
+    storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`);
+    storageRemove(`milosapps.${activeConfig.appKey}.essentialCookieInfo.v1`);
+  }
   activeLocale = normalizeLocale(document.documentElement.lang);
   document.body?.setAttribute("data-milos-essentials-page", "");
   if (activeConfig.features.startup) document.body?.setAttribute("data-milos-essentials-loading", "");

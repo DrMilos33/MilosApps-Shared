@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { schemaErrors } from "../dist/verify.mjs";
@@ -30,7 +30,14 @@ const THEME_PROPERTIES = Object.freeze({
 const scriptRoot = path.dirname(fileURLToPath(import.meta.url));
 const contractRoot = path.resolve(scriptRoot, "..");
 const repositoryRoot = path.resolve(contractRoot, "../../..");
-const COLOR_TOKEN = /^(?:#[0-9a-f]{3,8}|(?:rgb|rgba|hsl|hsla)\([0-9+\-.%, /deg]+\)|[a-z]+|var\(--[a-z0-9]+(?:-[a-z0-9]+)*\))$/i;
+const COLOR_TOKEN = /^(?:#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})|var\(--[a-z0-9]+(?:-[a-z0-9]+)*\))$/i;
+const SOURCE_RELEASE_ARTIFACTS = [
+  "dist/milos-app-essentials.css",
+  "dist/milos-app-essentials.js",
+  "dist/verify.mjs",
+  "essentials-manifest.schema.json",
+  "tools/sync.mjs"
+];
 
 function fail(message) {
   throw new Error(`public-app-essentials/v1 sync failed: ${message}`);
@@ -62,25 +69,88 @@ function inside(root, candidate, label) {
   return candidate;
 }
 
+async function confinedPath(root, candidate, label, allowMissing = false) {
+  const lexical = inside(root, candidate, label);
+  const relative = path.relative(root, lexical);
+  let cursor = root;
+  for (const segment of relative.split(path.sep)) {
+    cursor = path.join(cursor, segment);
+    try {
+      const info = await lstat(cursor);
+      if (info.isSymbolicLink()) fail(`${label} must not traverse symbolic links or junctions`);
+      if (info.isFile() && info.nlink > 1) fail(`${label} must not use hard-linked files`);
+      const resolved = await realpath(cursor);
+      const resolvedRelative = path.relative(root, resolved);
+      if (resolvedRelative.startsWith("..") || path.isAbsolute(resolvedRelative)) fail(`${label} resolves outside app root`);
+    } catch (error) {
+      if (error?.code === "ENOENT" && allowMissing) break;
+      if (error?.code === "ENOENT") return lexical;
+      throw error;
+    }
+  }
+  return lexical;
+}
+
+async function requiredFile(file, label) {
+  try {
+    return await readFile(file);
+  } catch {
+    fail(`${label} is missing: ${file}`);
+  }
+}
+
 function sha256(content) {
   return `sha256:${createHash("sha256").update(content).digest("hex")}`;
+}
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function manifestSha256(manifest) {
+  return sha256(Buffer.from(canonicalJson(manifest), "utf8"));
+}
+
+function validHttpsUrl(value) {
+  if (typeof value !== "string" || /\s/.test(value)) return false;
+  try {
+    const parsed = new URL(value);
+    const hostname = parsed.hostname.replace(/\.$/, "");
+    const labels = hostname.split(".");
+    return parsed.protocol === "https:"
+      && labels.length >= 2
+      && labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+      && !parsed.username
+      && !parsed.password;
+  } catch {
+    return false;
+  }
 }
 
 function safeThemeValue(value, key) {
   if (typeof value !== "string" || !value.trim()) fail(`theme.${key} is required`);
   const token = value.trim();
-  if (!COLOR_TOKEN.test(token)) fail(`theme.${key} must be a local CSS color token`);
+  if (!COLOR_TOKEN.test(token)) fail(`theme.${key} must be a valid hex color or local CSS custom-property token`);
   return token;
 }
 
+export function assertImmutableReleaseCommit(sourceCommit, releaseCommit) {
+  if (releaseCommit !== sourceCommit) fail("source commit must equal the immutable release tag commit");
+}
+
 async function verifySourceProvenance(sourceCommit) {
-  const relativeFiles = [
-    "dist/milos-app-essentials.css",
-    "dist/milos-app-essentials.js",
-    "dist/verify.mjs",
-    "essentials-manifest.schema.json",
-    "release.json"
-  ];
+  let sourceType;
+  try {
+    sourceType = execFileSync("git", ["-C", repositoryRoot, "cat-file", "-t", sourceCommit], { encoding: "utf8" }).trim();
+  } catch {
+    fail("source commit is not a readable Git object");
+  }
+  if (sourceType !== "commit") fail("source commit must name a Git commit object");
+  const relativeFiles = [...SOURCE_RELEASE_ARTIFACTS, "release.json"];
   for (const relative of relativeFiles) {
     const current = await readFile(path.join(contractRoot, relative));
     let committed;
@@ -93,10 +163,22 @@ async function verifySourceProvenance(sourceCommit) {
   }
   const release = JSON.parse(await readFile(path.join(contractRoot, "release.json"), "utf8"));
   if (release.id !== ID || release.version !== VERSION) fail("release identity does not match the sync tool");
+  if (release.tag !== `public-app-essentials-v${VERSION}`) fail("release tag identity does not match the sync tool");
+  if (JSON.stringify(Object.keys(release.artifacts || {}).sort()) !== JSON.stringify([...SOURCE_RELEASE_ARTIFACTS].sort())) fail("release artifact set mismatch");
   for (const [relative, expected] of Object.entries(release.artifacts || {})) {
     const content = await readFile(path.join(contractRoot, relative));
     if (sha256(content) !== expected) fail(`release checksum mismatch: ${relative}`);
   }
+  let tagType;
+  let releaseCommit;
+  try {
+    tagType = execFileSync("git", ["-C", repositoryRoot, "cat-file", "-t", release.tag], { encoding: "utf8" }).trim();
+    releaseCommit = execFileSync("git", ["-C", repositoryRoot, "rev-parse", `${release.tag}^{commit}`], { encoding: "utf8" }).trim();
+  } catch {
+    fail(`annotated release tag is not available: ${release.tag}`);
+  }
+  if (tagType !== "tag") fail("release tag must be an annotated Git tag");
+  assertImmutableReleaseCommit(sourceCommit, releaseCommit);
 }
 
 function validateStoragePurposes(manifest) {
@@ -130,11 +212,12 @@ function validateManifest(manifest, manifestSchema, sourceCommit, fixture) {
   if (manifest.environment === "dev" && manifest.productionApproved !== false) fail("DEV requires productionApproved=false");
   if (manifest.environment === "production" && manifest.productionApproved !== true) fail("Production requires explicit approval");
   if (!Array.isArray(manifest.integrationFiles) || manifest.integrationFiles.length === 0) fail("integrationFiles are required");
+  if (typeof manifest.essentialsContract?.runtimeBasePath !== "string" || !manifest.essentialsContract.runtimeBasePath.trim()) fail("runtimeBasePath is required");
   if (manifest.features?.startup !== true) fail("startup is required for public apps");
   if (manifest.privacy?.mode !== "no-cookies" && manifest.privacy?.mode !== "essential-only") fail("unsupported privacy mode");
   if (manifest.privacy?.optionalTracking !== false) fail("optional tracking is forbidden");
   validateStoragePurposes(manifest);
-  if (!/^https:\/\//.test(manifest.privacy?.privacyUrl || "")) fail("privacyUrl must use HTTPS");
+  if (!validHttpsUrl(manifest.privacy?.privacyUrl)) fail("privacyUrl must be an absolute HTTPS URL with a valid host and no credentials");
   if (manifest.features?.share !== true) fail("share is required");
   if (manifest.privacy.mode === "no-cookies" && manifest.features?.privacyNotice !== false) fail("no-cookies requires privacyNotice=false");
   if (manifest.privacy.mode === "essential-only" && manifest.features?.privacyNotice !== true) fail("essential-only requires privacyNotice=true");
@@ -172,15 +255,27 @@ function bootstrapSource(manifest) {
 }
 
 export async function syncEssentials(options) {
-  const appRoot = path.resolve(options["app-root"]);
-  const manifestPath = inside(appRoot, path.resolve(appRoot, options.manifest), "manifest");
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const appRoot = await realpath(path.resolve(options["app-root"]));
+  const manifestPath = await confinedPath(appRoot, path.resolve(appRoot, options.manifest), "manifest");
+  const manifestContent = await readFile(manifestPath);
+  const manifest = JSON.parse(manifestContent.toString("utf8"));
   const manifestSchema = JSON.parse(await readFile(path.join(contractRoot, "essentials-manifest.schema.json"), "utf8"));
   validateManifest(manifest, manifestSchema, options["source-commit"], options.fixture === true);
   if (options.fixture !== true) await verifySourceProvenance(options["source-commit"]);
 
-  const vendorRoot = inside(appRoot, path.resolve(appRoot, manifest.essentialsContract.vendorDirectory), "vendor directory");
+  const vendorRoot = await confinedPath(appRoot, path.resolve(appRoot, manifest.essentialsContract.vendorDirectory), "vendor directory", true);
+  const manifestSchemaTarget = path.join(vendorRoot, "essentials-manifest.schema.json");
+  const relativeSchema = path.relative(path.dirname(manifestPath), manifestSchemaTarget).replaceAll(path.sep, "/");
+  const expectedSchema = relativeSchema.startsWith(".") ? relativeSchema : `./${relativeSchema}`;
+  if (manifest.$schema !== expectedSchema) fail("manifest $schema must resolve to the locked vendored schema");
+  if (manifest.features?.placeSuggestions?.enabled) {
+    const evidencePath = await confinedPath(appRoot, path.resolve(appRoot, manifest.features.placeSuggestions.evidenceFile), "suggestions evidence");
+    await requiredFile(evidencePath, "suggestions evidence");
+  }
+  const iconPath = await confinedPath(appRoot, path.resolve(appRoot, manifest.loading.iconPath), "loading icon");
+  await requiredFile(iconPath, "loading icon");
   await mkdir(vendorRoot, { recursive: true });
+  await confinedPath(appRoot, vendorRoot, "vendor directory");
   const runtimeCss = await readFile(path.join(contractRoot, "dist", "milos-app-essentials.css"));
   const runtimeJs = await readFile(path.join(contractRoot, "dist", "milos-app-essentials.js"));
   const verifier = await readFile(path.join(contractRoot, "dist", "verify.mjs"));
@@ -188,12 +283,18 @@ export async function syncEssentials(options) {
   const themeCss = Buffer.from(themeSource(manifest), "utf8");
   const bootstrap = Buffer.from(bootstrapSource(manifest), "utf8");
 
-  await writeFile(path.join(vendorRoot, "milos-app-essentials.css"), runtimeCss);
-  await writeFile(path.join(vendorRoot, "milos-app-essentials-theme.css"), themeCss);
-  await writeFile(path.join(vendorRoot, "milos-app-essentials.js"), runtimeJs);
-  await writeFile(path.join(vendorRoot, "bootstrap.js"), bootstrap);
-  await copyFile(path.join(contractRoot, "dist", "verify.mjs"), path.join(vendorRoot, "verify.mjs"));
-  await writeFile(path.join(vendorRoot, "essentials-manifest.schema.json"), manifestSchemaContent);
+  const outputs = {
+    "milos-app-essentials.css": runtimeCss,
+    "milos-app-essentials-theme.css": themeCss,
+    "milos-app-essentials.js": runtimeJs,
+    "bootstrap.js": bootstrap,
+    "verify.mjs": verifier,
+    "essentials-manifest.schema.json": manifestSchemaContent
+  };
+  for (const [name, content] of Object.entries(outputs)) {
+    const destination = await confinedPath(appRoot, path.join(vendorRoot, name), name, true);
+    await writeFile(destination, content);
+  }
 
   const lock = {
     contract: ID,
@@ -201,7 +302,9 @@ export async function syncEssentials(options) {
     sharedCommit: options["source-commit"],
     appKey: manifest.appKey,
     manifest: path.relative(appRoot, manifestPath).replaceAll(path.sep, "/"),
+    manifestSha256: manifestSha256(manifest),
     vendorDirectory: path.relative(appRoot, vendorRoot).replaceAll(path.sep, "/"),
+    runtimeBasePath: manifest.essentialsContract.runtimeBasePath,
     artifacts: {
       "milos-app-essentials.css": sha256(runtimeCss),
       "milos-app-essentials-theme.css": sha256(themeCss),
@@ -211,7 +314,8 @@ export async function syncEssentials(options) {
       "essentials-manifest.schema.json": sha256(manifestSchemaContent)
     }
   };
-  await writeFile(path.join(vendorRoot, "essentials-lock.json"), `${JSON.stringify(lock, null, 2)}\n`, "utf8");
+  const lockPath = await confinedPath(appRoot, path.join(vendorRoot, "essentials-lock.json"), "essentials lock", true);
+  await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`, "utf8");
   return { appRoot, manifestPath, vendorRoot, lock };
 }
 

@@ -1,5 +1,5 @@
 {
-  "$schema": "../../essentials-manifest.schema.json",
+  "$schema": "./vendor/milosapps-essentials/v1/essentials-manifest.schema.json",
   "appKey": "reference-app",
   "ownerTask": "MilosApps – Referenz",
   "public": true,
@@ -7,6 +7,10 @@
   "environment": "dev",
   "productionApproved": false,
   "entryHtml": "index.html",
+  "consumerEntryModule": {
+    "sourceFile": "app.js",
+    "runtimePath": "app.js"
+  },
   "integrationFiles": ["index.html", "app.js"],
   "loading": {
     "appName": "Reiseplaner",
@@ -58,6 +62,7 @@
     "id": "public-app-essentials/v1",
     "version": "1.1.1",
     "sharedCommit": "0000000000000000000000000000000000000000",
-    "vendorDirectory": "vendor/milosapps-essentials/v1"
+    "vendorDirectory": "vendor/milosapps-essentials/v1",
+    "runtimeBasePath": "vendor/milosapps-essentials/v1"
   }
 }

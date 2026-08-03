@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { lstat, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -77,58 +77,610 @@ export function schemaErrors(schema, value, location = "$", errors = []) {
   return errors;
 }
 
-function stripHtmlComments(value) {
-  return String(value).replace(/<!--[\s\S]*?-->/g, "");
+const RAW_TEXT_ELEMENTS = new Set([
+  "iframe",
+  "noembed",
+  "noframes",
+  "noscript",
+  "plaintext",
+  "script",
+  "style",
+  "textarea",
+  "title",
+  "xmp"
+]);
+const INERT_CONTAINER_ELEMENTS = new Set(["math", "svg"]);
+
+function readHtmlTag(source, start) {
+  let index = start + 1;
+  let quote = null;
+  while (index < source.length) {
+    const character = source[index];
+    if (quote) {
+      if (character === quote) quote = null;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+    } else if (character === ">") {
+      const raw = source.slice(start, index + 1);
+      let safe = raw[0];
+      let attributeQuote = null;
+      for (const value of raw.slice(1)) {
+        if (attributeQuote) {
+          if (value === attributeQuote) attributeQuote = null;
+          safe += value === "<" || value === ">" ? " " : value;
+        } else {
+          if (value === '"' || value === "'") attributeQuote = value;
+          safe += value === "<" ? " " : value;
+        }
+      }
+      return { source: safe, index: index + 1 };
+    }
+    index += 1;
+  }
+  return null;
 }
 
-function stripJavaScriptComments(value) {
-  const source = String(value);
-  let output = "";
-  let quote = "";
-  for (let index = 0; index < source.length; index += 1) {
-    const current = source[index];
-    const next = source[index + 1];
-    if (quote) {
-      output += current;
-      if (current === "\\") output += source[++index] || "";
-      else if (current === quote) quote = "";
+function earliestTerminator(source, start, terminators) {
+  const matches = terminators
+    .map((terminator) => ({ terminator, index: source.indexOf(terminator, start) }))
+    .filter(({ index }) => index >= 0)
+    .sort((left, right) => left.index - right.index);
+  return matches[0] || null;
+}
+
+function skipInertContainer(source, start, containerName) {
+  let depth = 1;
+  let index = start;
+  while (index < source.length && depth > 0) {
+    const tagStart = source.indexOf("<", index);
+    if (tagStart < 0) return source.length;
+    if (source.startsWith("<!--", tagStart)) {
+      const end = earliestTerminator(source, tagStart + 4, ["-->", "--!>"]);
+      index = end ? end.index + end.terminator.length : source.length;
       continue;
     }
-    if (current === '"' || current === "'" || current === "`") {
-      quote = current;
-      output += current;
+    if (source.startsWith("<![CDATA[", tagStart)) {
+      const end = source.indexOf("]]>", tagStart + 9);
+      index = end >= 0 ? end + 3 : source.length;
+      continue;
+    }
+    const nameMatch = source.slice(tagStart + 1).match(/^\/?([A-Za-z][A-Za-z0-9:-]*)/);
+    const tag = nameMatch ? readHtmlTag(source, tagStart) : null;
+    if (!tag) {
+      index = tagStart + 1;
+      continue;
+    }
+    const nestedName = nameMatch[1].toLowerCase();
+    const closing = source[tagStart + 1] === "/";
+    if (!closing && nestedName === "template") fail("template elements inside foreign content are forbidden");
+    if (!closing && RAW_TEXT_ELEMENTS.has(nestedName)) {
+      const closingPattern = new RegExp(`</${nestedName}(?=[\\t\\n\\f\\r ]|>)`, "ig");
+      closingPattern.lastIndex = tag.index;
+      const closingMatch = closingPattern.exec(source);
+      if (!closingMatch) return source.length;
+      const rawBody = source.slice(tag.index, closingMatch.index);
+      if ((nestedName === "script" || nestedName === "style") && rawBody.includes("<!--")) fail("escaped script/style data inside foreign content is forbidden");
+      const closingTag = readHtmlTag(source, closingMatch.index);
+      index = closingTag?.index ?? source.length;
+      continue;
+    }
+    if (nestedName === containerName) {
+      if (closing) depth -= 1;
+      else if (!/\/[\t\n\f\r ]*>$/.test(tag.source)) depth += 1;
+    }
+    index = tag.index;
+  }
+  return index;
+}
+
+function containsEscapedScriptData(value) {
+  const source = String(value);
+  const pattern = /<script(?=[\t\n\f\r ]|>)/ig;
+  for (const match of source.matchAll(pattern)) {
+    const tag = readHtmlTag(source, match.index);
+    if (!tag) return true;
+    const closingPattern = /<\/script(?=[\t\n\f\r ]|>)/ig;
+    closingPattern.lastIndex = tag.index;
+    const closing = closingPattern.exec(source);
+    if (!closing) return true;
+    if (source.slice(tag.index, closing.index).includes("<!--")) return true;
+  }
+  return false;
+}
+
+function extractHtmlMarkup(value) {
+  const source = String(value);
+  const tags = [];
+  let index = 0;
+  while (index < source.length) {
+    const start = source.indexOf("<", index);
+    if (start < 0) break;
+    if (source.startsWith("<!--", start)) {
+      const end = earliestTerminator(source, start + 4, ["-->", "--!>"]);
+      index = end ? end.index + end.terminator.length : source.length;
+      continue;
+    }
+    if (source.startsWith("<![CDATA[", start)) {
+      const end = source.indexOf("]]>", start + 9);
+      index = end >= 0 ? end + 3 : source.length;
+      continue;
+    }
+    if (source.startsWith("<?", start)) {
+      const end = earliestTerminator(source, start + 2, ["?>", ">"]);
+      index = end ? end.index + end.terminator.length : source.length;
+      continue;
+    }
+    if (source.startsWith("<!", start)) {
+      const end = source.indexOf(">", start + 2);
+      index = end >= 0 ? end + 1 : source.length;
+      continue;
+    }
+    if (source.startsWith("</", start) && !/[A-Za-z]/.test(source[start + 2] || "")) {
+      const end = source.indexOf(">", start + 2);
+      index = end >= 0 ? end + 1 : source.length;
+      continue;
+    }
+    const nameMatch = source.slice(start + 1).match(/^\/?([A-Za-z][A-Za-z0-9:-]*)/);
+    if (!nameMatch) {
+      index = start + 1;
+      continue;
+    }
+    const tag = readHtmlTag(source, start);
+    if (!tag) break;
+    const closing = source[start + 1] === "/";
+    const name = nameMatch[1].toLowerCase();
+    if (!closing) tags.push(tag.source);
+    index = tag.index;
+    if (!closing && INERT_CONTAINER_ELEMENTS.has(name)) {
+      index = skipInertContainer(source, index, name);
+    } else if (!closing && RAW_TEXT_ELEMENTS.has(name)) {
+      if (name === "plaintext") break;
+      const closingPattern = new RegExp(`</${name}(?=[\\t\\n\\f\\r ]|>)`, "ig");
+      closingPattern.lastIndex = index;
+      const closingMatch = closingPattern.exec(source);
+      if (!closingMatch) break;
+      const closingTag = readHtmlTag(source, closingMatch.index);
+      index = closingTag?.index ?? source.length;
+    }
+  }
+  return tags.join("\n");
+}
+
+function skipQuotedLiteral(source, start, quote) {
+  let index = start + 1;
+  while (index < source.length) {
+    if (source[index] === "\\") index += 2;
+    else if (source[index++] === quote) break;
+  }
+  return index;
+}
+
+function skipLineComment(source, start) {
+  let index = start + 2;
+  while (index < source.length && source[index] !== "\n") index += 1;
+  return index;
+}
+
+function skipBlockComment(source, start) {
+  let index = start + 2;
+  while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) index += 1;
+  return Math.min(source.length, index + 2);
+}
+
+function skipRegexLiteral(source, start) {
+  let index = start + 1;
+  let characterClass = false;
+  while (index < source.length) {
+    const character = source[index];
+    if (character === "\\") index += 2;
+    else if (character === "[" && !characterClass) { characterClass = true; index += 1; }
+    else if (character === "]" && characterClass) { characterClass = false; index += 1; }
+    else if (character === "/" && !characterClass) { index += 1; break; }
+    else if (character === "\n" || character === "\r") break;
+    else index += 1;
+  }
+  while (/[a-z]/i.test(source[index] || "")) index += 1;
+  return index;
+}
+
+const PROTECTED_REGEX_EVIDENCE = /(?:<milos-(?:share-button|date-picker|place-search)\b|data-milos-privacy-info|globalThis\s*\.\s*milosAppEssentials\s*\.\s*ready\s*\(|\.\s*set(?:Payload|Search|Suggestions)Provider\s*\()/i;
+
+function maskProtectedSlashSpans(value, allowJsx = false) {
+  const source = String(value);
+  const output = [...source];
+  for (let index = 0; index < source.length; index += 1) {
+    if (source[index] === '"' || source[index] === "'") {
+      index = skipQuotedLiteral(source, index, source[index]) - 1;
+      continue;
+    }
+    if (source[index] === "`") {
+      index = skipTemplateLiteral(source, index) - 1;
+      continue;
+    }
+    if (source[index] === "/" && source[index + 1] === "/") {
+      index = skipLineComment(source, index) - 1;
+      continue;
+    }
+    if (source[index] === "/" && source[index + 1] === "*") {
+      index = skipBlockComment(source, index) - 1;
+      continue;
+    }
+    if (allowJsx && source[index] === "<" && /^\/?[A-Za-z]/.test(source.slice(index + 1, index + 3))) {
+      index = readMarkupTag(source, index).index - 1;
+      continue;
+    }
+    if (source[index] !== "/" || source[index - 1] === "<" || source[index + 1] === "/" || source[index + 1] === "*" || source[index + 1] === ">") continue;
+    const end = skipRegexLiteral(source, index);
+    if (end <= index + 1 || !PROTECTED_REGEX_EVIDENCE.test(source.slice(index, end))) continue;
+    for (let cursor = index; cursor < end; cursor += 1) {
+      if (output[cursor] !== "\n" && output[cursor] !== "\r") output[cursor] = " ";
+    }
+    index = end - 1;
+  }
+  return output.join("");
+}
+
+function skipTemplateLiteral(source, start) {
+  let index = start + 1;
+  while (index < source.length) {
+    if (source[index] === "\\") index += 2;
+    else if (source[index] === "`") return index + 1;
+    else if (source[index] === "$" && source[index + 1] === "{") index = skipJavaScriptExpression(source, index + 2);
+    else index += 1;
+  }
+  return index;
+}
+
+function skipJavaScriptExpression(source, start) {
+  const expressionKeywords = new Set(["await", "break", "case", "continue", "debugger", "default", "delete", "do", "else", "in", "instanceof", "new", "of", "return", "throw", "typeof", "void", "yield"]);
+  const controlHeaderKeywords = new Set(["catch", "for", "if", "switch", "while", "with"]);
+  const parenthesisKinds = [];
+  let index = start;
+  let depth = 1;
+  let canStartExpression = true;
+  let pendingControlHeader = false;
+  while (index < source.length && depth > 0) {
+    const current = source[index];
+    const next = source[index + 1];
+    if (/\s/.test(current)) { index += 1; continue; }
+    if (current === "/" && next === "/") { index = skipLineComment(source, index); continue; }
+    if (current === "/" && next === "*") { index = skipBlockComment(source, index); continue; }
+    if (current === '"' || current === "'") { index = skipQuotedLiteral(source, index, current); canStartExpression = false; pendingControlHeader = false; continue; }
+    if (current === "`") { index = skipTemplateLiteral(source, index); canStartExpression = false; pendingControlHeader = false; continue; }
+    if (current === "/" && canStartExpression) { index = skipRegexLiteral(source, index); canStartExpression = false; continue; }
+    if (current === "{") { depth += 1; canStartExpression = true; index += 1; continue; }
+    if (current === "}") { depth -= 1; canStartExpression = true; pendingControlHeader = false; index += 1; continue; }
+    if (/[A-Za-z_$]/.test(current)) {
+      let end = index + 1;
+      while (/[A-Za-z0-9_$]/.test(source[end] || "")) end += 1;
+      const token = source.slice(index, end);
+      pendingControlHeader = controlHeaderKeywords.has(token) || (pendingControlHeader && token === "await");
+      canStartExpression = expressionKeywords.has(token);
+      index = end;
+      continue;
+    }
+    if (/\d/.test(current)) {
+      index += 1;
+      while (/[A-Za-z0-9_.]/.test(source[index] || "")) index += 1;
+      canStartExpression = false;
+      pendingControlHeader = false;
+      continue;
+    }
+    if (current === "(") { parenthesisKinds.push(pendingControlHeader ? "control" : "normal"); pendingControlHeader = false; canStartExpression = true; index += 1; continue; }
+    if (current === ")") { canStartExpression = parenthesisKinds.pop() === "control"; pendingControlHeader = false; index += 1; continue; }
+    if (current === "}") { canStartExpression = true; pendingControlHeader = false; index += 1; continue; }
+    if (current === "=" && next === ">") { canStartExpression = true; index += 2; continue; }
+    pendingControlHeader = false;
+    canStartExpression = ![".", ")", "]", "}"].includes(current);
+    index += 1;
+  }
+  return index;
+}
+
+function readMarkupTag(source, start) {
+  let index = start;
+  let output = "";
+  while (index < source.length) {
+    const current = source[index];
+    if (current === '"' || current === "'") {
+      const end = skipQuotedLiteral(source, index, current);
+      output += source.slice(index, end);
+      index = end;
+      continue;
+    }
+    if (current === "{") {
+      index = skipJavaScriptExpression(source, index + 1);
+      output += /=\s*$/.test(output) ? '""' : " ";
+      continue;
+    }
+    output += current;
+    index += 1;
+    if (current === ">") break;
+  }
+  return { output, index };
+}
+
+function extractJavaScriptMarkup(value, allowJsx = false) {
+  const source = maskProtectedSlashSpans(value, allowJsx);
+  const output = [];
+  const expressionKeywords = new Set(["await", "break", "case", "continue", "debugger", "default", "delete", "do", "else", "in", "instanceof", "new", "of", "return", "throw", "typeof", "void", "yield"]);
+  const controlHeaderKeywords = new Set(["catch", "for", "if", "switch", "while", "with"]);
+  const parenthesisKinds = [];
+  let index = source.charCodeAt(0) === 0xfeff ? 1 : 0;
+  if (source.startsWith("#!", index)) index = skipLineComment(source, index);
+  let canStartExpression = true;
+  let pendingControlHeader = false;
+  while (index < source.length) {
+    const current = source[index];
+    const next = source[index + 1];
+    if (/\s/.test(current)) { index += 1; continue; }
+    if (current === "/" && next === "/") { index = skipLineComment(source, index); continue; }
+    if (current === "/" && next === "*") { index = skipBlockComment(source, index); continue; }
+    if (current === '"' || current === "'") { index = skipQuotedLiteral(source, index, current); canStartExpression = false; pendingControlHeader = false; continue; }
+    if (current === "`") {
+      index += 1;
+      let raw = "";
+      while (index < source.length) {
+        if (source[index] === "\\") { raw += source.slice(index, index + 2); index += 2; }
+        else if (source[index] === "`") { index += 1; break; }
+        else if (source[index] === "$" && source[index + 1] === "{") { raw += " "; index = skipJavaScriptExpression(source, index + 2); }
+        else raw += source[index++];
+      }
+      output.push(raw);
+      canStartExpression = false;
+      pendingControlHeader = false;
+      continue;
+    }
+    if (current === "/" && canStartExpression) { index = skipRegexLiteral(source, index); canStartExpression = false; continue; }
+    if (allowJsx && current === "<" && /^\/?[A-Za-z]/.test(source.slice(index + 1, index + 3))) {
+      const tag = readMarkupTag(source, index);
+      output.push(tag.output);
+      index = tag.index;
+      canStartExpression = false;
+      continue;
+    }
+    if (/[A-Za-z_$]/.test(current)) {
+      let end = index + 1;
+      while (/[A-Za-z0-9_$]/.test(source[end] || "")) end += 1;
+      const token = source.slice(index, end);
+      pendingControlHeader = controlHeaderKeywords.has(token) || (pendingControlHeader && token === "await");
+      canStartExpression = expressionKeywords.has(token);
+      index = end;
+      continue;
+    }
+    if (/\d/.test(current)) {
+      index += 1;
+      while (/[A-Za-z0-9_.]/.test(source[index] || "")) index += 1;
+      canStartExpression = false;
+      pendingControlHeader = false;
+      continue;
+    }
+    if (current === "(") { parenthesisKinds.push(pendingControlHeader ? "control" : "normal"); pendingControlHeader = false; canStartExpression = true; index += 1; continue; }
+    if (current === ")") { canStartExpression = parenthesisKinds.pop() === "control"; pendingControlHeader = false; index += 1; continue; }
+    if (current === "=" && next === ">") { canStartExpression = true; index += 2; continue; }
+    pendingControlHeader = false;
+    canStartExpression = ![".", ")", "]", "}"].includes(current);
+    index += 1;
+  }
+  return output.join("\n");
+}
+
+function javascriptCodeTokens(value, allowJsx = false) {
+  const source = maskProtectedSlashSpans(value, allowJsx);
+  const tokens = [];
+  const expressionKeywords = new Set(["await", "break", "case", "continue", "debugger", "default", "delete", "do", "else", "in", "instanceof", "new", "of", "return", "throw", "typeof", "void", "yield"]);
+  const controlHeaderKeywords = new Set(["catch", "for", "if", "switch", "while", "with"]);
+  const parenthesisKinds = [];
+  let index = source.charCodeAt(0) === 0xfeff ? 1 : 0;
+  if (source.startsWith("#!", index)) index = skipLineComment(source, index);
+  let canStartExpression = true;
+  let pendingControlHeader = false;
+  while (index < source.length) {
+    const current = source[index];
+    const next = source[index + 1];
+    if (/\s/.test(current)) {
+      index += 1;
       continue;
     }
     if (current === "/" && next === "/") {
+      index += 2;
       while (index < source.length && source[index] !== "\n") index += 1;
-      output += "\n";
       continue;
     }
     if (current === "/" && next === "*") {
       index += 2;
       while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) index += 1;
+      index += 2;
+      continue;
+    }
+    if (current === '"' || current === "'") {
+      const quote = current;
+      index += 1;
+      while (index < source.length) {
+        if (source[index] === "\\") index += 2;
+        else if (source[index++] === quote) break;
+      }
+      tokens.push("<literal>");
+      canStartExpression = false;
+      pendingControlHeader = false;
+      continue;
+    }
+    if (current === "`") {
+      index += 1;
+      while (index < source.length) {
+        if (source[index] === "\\") index += 2;
+        else if (source[index++] === "`") break;
+      }
+      tokens.push("<literal>");
+      canStartExpression = false;
+      pendingControlHeader = false;
+      continue;
+    }
+    if (current === "/" && canStartExpression) {
+      index += 1;
+      let characterClass = false;
+      while (index < source.length) {
+        const character = source[index];
+        if (character === "\\") index += 2;
+        else if (character === "[" && !characterClass) { characterClass = true; index += 1; }
+        else if (character === "]" && characterClass) { characterClass = false; index += 1; }
+        else if (character === "/" && !characterClass) { index += 1; break; }
+        else if (character === "\n" || character === "\r") break;
+        else index += 1;
+      }
+      while (/[a-z]/i.test(source[index] || "")) index += 1;
+      tokens.push("<literal>");
+      canStartExpression = false;
+      continue;
+    }
+    if (/[A-Za-z_$]/.test(current)) {
+      let end = index + 1;
+      while (/[A-Za-z0-9_$]/.test(source[end] || "")) end += 1;
+      const token = source.slice(index, end);
+      tokens.push(token);
+      pendingControlHeader = controlHeaderKeywords.has(token) || (pendingControlHeader && token === "await");
+      canStartExpression = expressionKeywords.has(token);
+      index = end;
+      continue;
+    }
+    if (/\d/.test(current)) {
+      let end = index + 1;
+      while (/[A-Za-z0-9_.]/.test(source[end] || "")) end += 1;
+      tokens.push(source.slice(index, end));
+      canStartExpression = false;
+      pendingControlHeader = false;
+      index = end;
+      continue;
+    }
+    if (current === "(") {
+      tokens.push(current);
+      parenthesisKinds.push(pendingControlHeader ? "control" : "normal");
+      pendingControlHeader = false;
+      canStartExpression = true;
       index += 1;
       continue;
     }
-    output += current;
+    if (current === ")") {
+      tokens.push(current);
+      canStartExpression = parenthesisKinds.pop() === "control";
+      pendingControlHeader = false;
+      index += 1;
+      continue;
+    }
+    if (current === "}") {
+      tokens.push(current);
+      canStartExpression = true;
+      pendingControlHeader = false;
+      index += 1;
+      continue;
+    }
+    if (current === "=" && next === ">") {
+      tokens.push("=>");
+      canStartExpression = true;
+      index += 2;
+      continue;
+    }
+    tokens.push(current);
+    pendingControlHeader = false;
+    canStartExpression = ![".", ")", "]", "}"].includes(current);
+    index += 1;
   }
-  return output;
+  return tokens;
+}
+
+function maskJsxText(value) {
+  return String(value).replace(/>([^<{]*)</g, (match, text) => `>${text.replace(/[^\r\n]/g, " ")}<`);
+}
+
+function hasCallPath(tokens, names) {
+  return tokens.some((token, index) => {
+    if (token !== names[0]) return false;
+    let cursor = index + 1;
+    for (const name of names.slice(1)) {
+      if (tokens[cursor] !== "." || tokens[cursor + 1] !== name) return false;
+      cursor += 2;
+    }
+    return tokens[cursor] === "(";
+  });
+}
+
+function hasMethodCall(tokens, methodName) {
+  return tokens.some((token, index) => token === "." && tokens[index + 1] === methodName && tokens[index + 2] === "(");
 }
 
 function htmlTags(source, tagName) {
-  return [...source.matchAll(new RegExp(`<${tagName}\\b[^>]*>`, "gi"))].map((match) => ({ source: match[0], index: match.index }));
+  return [...source.matchAll(new RegExp(`<${tagName}(?=[\\t\\n\\f\\r ]|/?>)[^>]*>`, "gi"))].map((match) => ({ source: match[0], index: match.index }));
+}
+
+function htmlStartTags(source) {
+  return [...source.matchAll(/<[A-Za-z][A-Za-z0-9:-]*(?=[\t\n\f\r ]|\/?>)[^>]*>/g)].map((match) => ({ source: match[0], index: match.index }));
+}
+
+function tagAttributes(tag) {
+  const attributes = new Map();
+  let index = 1;
+  while (/[A-Za-z0-9:-]/.test(tag[index] || "")) index += 1;
+  while (index < tag.length) {
+    while (/[\t\n\f\r ]/.test(tag[index] || "")) index += 1;
+    if (!tag[index] || tag[index] === ">" || (tag[index] === "/" && tag[index + 1] === ">")) break;
+    const nameStart = index;
+    while (tag[index] && !/[\t\n\f\r =/>]/.test(tag[index])) index += 1;
+    const name = tag.slice(nameStart, index).toLowerCase();
+    if (!name) { index += 1; continue; }
+    while (/[\t\n\f\r ]/.test(tag[index] || "")) index += 1;
+    let value = "";
+    if (tag[index] === "=") {
+      index += 1;
+      while (/[\t\n\f\r ]/.test(tag[index] || "")) index += 1;
+      if (tag[index] === '"' || tag[index] === "'") {
+        const quote = tag[index++];
+        const valueStart = index;
+        while (tag[index] && tag[index] !== quote) index += 1;
+        value = tag.slice(valueStart, index);
+        if (tag[index] === quote) index += 1;
+      } else {
+        const valueStart = index;
+        while (tag[index] && !/[\t\n\f\r >]/.test(tag[index])) index += 1;
+        value = tag.slice(valueStart, index);
+      }
+    }
+    if (!attributes.has(name)) attributes.set(name, value);
+  }
+  return attributes;
 }
 
 function attributeValue(tag, attribute) {
-  return tag.match(new RegExp(`\\b${attribute}\\s*=\\s*["']([^"']*)["']`, "i"))?.[1] ?? null;
+  return tagAttributes(tag).get(attribute.toLowerCase()) ?? null;
 }
 
 function hasAttribute(tag, attribute) {
-  return new RegExp(`(?:\\s|^)${attribute}(?:\\s*=|\\s|/?>)`, "i").test(tag);
+  return tagAttributes(tag).has(attribute.toLowerCase());
 }
 
-function pathEndsWith(value, expected) {
-  return String(value || "").split(/[?#]/, 1)[0].replaceAll("\\", "/").endsWith(expected);
+function isActiveCriticalStylesheet(tag) {
+  const rel = (attributeValue(tag, "rel") || "").toLowerCase().split(/[\t\n\f\r ]+/).filter(Boolean);
+  if (!rel.includes("stylesheet") || rel.includes("alternate") || hasAttribute(tag, "disabled") || hasAttribute(tag, "integrity")) return false;
+  if (hasAttribute(tag, "type") && (attributeValue(tag, "type") || "").toLowerCase() !== "text/css") return false;
+  if (hasAttribute(tag, "media") && !["", "all"].includes((attributeValue(tag, "media") || "").trim().toLowerCase())) return false;
+  return true;
+}
+
+function normalizedLocalUrl(value) {
+  const raw = String(value || "");
+  if (!raw || raw.includes("\\") || /^(?:[A-Za-z][A-Za-z0-9+.-]*:|\/\/)/.test(raw)) return null;
+  const withoutSuffix = raw.split(/[?#]/, 1)[0];
+  const normalized = withoutSuffix.startsWith("./") ? withoutSuffix.slice(2) : withoutSuffix;
+  const rooted = normalized.startsWith("/");
+  const pathname = rooted ? normalized.slice(1) : normalized;
+  const segments = pathname.split("/");
+  if (!pathname || segments.some((segment) => !/^[A-Za-z0-9_~-][A-Za-z0-9._~-]*$/.test(segment))) return null;
+  return `${rooted ? "/" : ""}${pathname}`;
+}
+
+function localUrlEquals(value, expected) {
+  const normalizedValue = normalizedLocalUrl(value);
+  const normalizedExpected = normalizedLocalUrl(expected);
+  return normalizedValue !== null && normalizedExpected !== null && normalizedValue === normalizedExpected;
 }
 
 function parseArgs(argv) {
@@ -149,6 +701,28 @@ function inside(root, candidate, label) {
   return candidate;
 }
 
+async function confinedPath(root, candidate, label, allowMissing = false) {
+  const lexical = inside(root, candidate, label);
+  const relative = path.relative(root, lexical);
+  let cursor = root;
+  for (const segment of relative.split(path.sep)) {
+    cursor = path.join(cursor, segment);
+    try {
+      const info = await lstat(cursor);
+      if (info.isSymbolicLink()) fail(`${label} must not traverse symbolic links or junctions`);
+      if (info.isFile() && info.nlink > 1) fail(`${label} must not use hard-linked files`);
+      const resolved = await realpath(cursor);
+      const resolvedRelative = path.relative(root, resolved);
+      if (resolvedRelative.startsWith("..") || path.isAbsolute(resolvedRelative)) fail(`${label} resolves outside app root`);
+    } catch (error) {
+      if (error?.code === "ENOENT" && allowMissing) break;
+      if (error?.code === "ENOENT") return lexical;
+      throw error;
+    }
+  }
+  return lexical;
+}
+
 async function requiredFile(file, label) {
   try {
     return await readFile(file);
@@ -161,8 +735,32 @@ function sha256(content) {
   return `sha256:${createHash("sha256").update(content).digest("hex")}`;
 }
 
-function normalizedWebPath(value) {
-  return String(value).replaceAll("\\", "/").replace(/^\.\//, "");
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function manifestSha256(manifest) {
+  return sha256(Buffer.from(canonicalJson(manifest), "utf8"));
+}
+
+function validHttpsUrl(value) {
+  if (typeof value !== "string" || /\s/.test(value)) return false;
+  try {
+    const parsed = new URL(value);
+    const hostname = parsed.hostname.replace(/\.$/, "");
+    const labels = hostname.split(".");
+    return parsed.protocol === "https:"
+      && labels.length >= 2
+      && labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+      && !parsed.username
+      && !parsed.password;
+  } catch {
+    return false;
+  }
 }
 
 function validateStoragePurposes(manifest) {
@@ -182,22 +780,34 @@ function validateStoragePurposes(manifest) {
 }
 
 export async function verifyEssentials(appRootInput, manifestInput) {
-  const appRoot = path.resolve(appRootInput);
-  const manifestPath = inside(appRoot, path.resolve(appRoot, manifestInput), "manifest");
-  const manifest = JSON.parse((await requiredFile(manifestPath, "manifest")).toString("utf8"));
+  const appRoot = await realpath(path.resolve(appRootInput));
+  const manifestPath = await confinedPath(appRoot, path.resolve(appRoot, manifestInput), "manifest");
+  const manifestContent = await requiredFile(manifestPath, "manifest");
+  const manifest = JSON.parse(manifestContent.toString("utf8"));
   if (typeof manifest.essentialsContract?.vendorDirectory !== "string") fail("vendor directory is required");
-  const vendorRoot = inside(appRoot, path.resolve(appRoot, manifest.essentialsContract.vendorDirectory), "vendor directory");
-  const lock = JSON.parse((await requiredFile(path.join(vendorRoot, "essentials-lock.json"), "essentials lock")).toString("utf8"));
+  const vendorRoot = await confinedPath(appRoot, path.resolve(appRoot, manifest.essentialsContract.vendorDirectory), "vendor directory");
+  const lockPath = await confinedPath(appRoot, path.join(vendorRoot, "essentials-lock.json"), "essentials lock");
+  const lock = JSON.parse((await requiredFile(lockPath, "essentials lock")).toString("utf8"));
   if (lock.contract !== ID || lock.version !== VERSION) fail("lock contract/version mismatch");
   if (lock.sharedCommit !== manifest.essentialsContract.sharedCommit) fail("lock/shared commit mismatch");
   if (lock.appKey !== manifest.appKey) fail("lock/app key mismatch");
+  const relativeManifest = path.relative(appRoot, manifestPath).replaceAll(path.sep, "/");
+  if (lock.manifest !== relativeManifest) fail("lock/manifest path mismatch");
   for (const artifact of ARTIFACTS) {
-    const content = await requiredFile(path.join(vendorRoot, artifact), artifact);
+    const artifactPath = await confinedPath(appRoot, path.join(vendorRoot, artifact), artifact);
+    const content = await requiredFile(artifactPath, artifact);
     if (sha256(content) !== lock.artifacts?.[artifact]) fail(`${artifact} checksum mismatch`);
   }
-  const manifestSchema = JSON.parse((await requiredFile(path.join(vendorRoot, "essentials-manifest.schema.json"), "manifest schema")).toString("utf8"));
+  const manifestSchemaPath = await confinedPath(appRoot, path.join(vendorRoot, "essentials-manifest.schema.json"), "manifest schema");
+  const manifestSchema = JSON.parse((await requiredFile(manifestSchemaPath, "manifest schema")).toString("utf8"));
   const manifestErrors = schemaErrors(manifestSchema, manifest);
   if (manifestErrors.length) fail(`manifest schema: ${manifestErrors.join("; ")}`);
+  const relativeSchema = path.relative(path.dirname(manifestPath), manifestSchemaPath).replaceAll(path.sep, "/");
+  const expectedSchema = relativeSchema.startsWith(".") ? relativeSchema : `./${relativeSchema}`;
+  if (manifest.$schema !== expectedSchema) fail("manifest $schema must resolve to the locked vendored schema");
+  if (lock.manifestSha256 !== manifestSha256(manifest)) fail("lock/manifest configuration mismatch");
+  if (lock.runtimeBasePath !== manifest.essentialsContract.runtimeBasePath) fail("lock/runtime base path mismatch");
+  if (JSON.stringify(Object.keys(lock.artifacts || {}).sort()) !== JSON.stringify([...ARTIFACTS].sort())) fail("lock artifact set mismatch");
   if (manifest.public !== true || manifest.loginRequired !== false) fail("consumer must be a public no-login surface");
   const fixture = manifest.appKey === "reference-app" && /^0+$/.test(manifest.essentialsContract?.sharedCommit || "");
   if (!fixture && !CONSUMERS.has(manifest.appKey)) fail("appKey is not an eligible consumer");
@@ -208,7 +818,7 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   if (manifest.privacy?.mode !== "no-cookies" && manifest.privacy?.mode !== "essential-only") fail("unsupported privacy mode");
   if (manifest.privacy?.optionalTracking !== false) fail("optional tracking is forbidden");
   validateStoragePurposes(manifest);
-  if (!/^https:\/\//.test(manifest.privacy?.privacyUrl || "")) fail("privacy URL must use HTTPS");
+  if (!validHttpsUrl(manifest.privacy?.privacyUrl)) fail("privacy URL must be an absolute HTTPS URL with a valid host and no credentials");
   if (manifest.features?.startup !== true) fail("startup is required for public apps");
   if (manifest.features?.share !== true) fail("share is required");
   if (manifest.privacy?.mode === "no-cookies" && manifest.features?.privacyNotice !== false) fail("no-cookies requires privacyNotice=false");
@@ -220,56 +830,82 @@ export async function verifyEssentials(appRootInput, manifestInput) {
     if (manifest.features?.placeSearch !== true) fail("place suggestions require placeSearch=true");
     if (suggestions.providerCapability !== "consumer-autocomplete-proxy") fail("place suggestions require a consumer autocomplete proxy");
     if (typeof suggestions.evidenceFile !== "string" || !suggestions.evidenceFile.trim()) fail("place suggestions require provider evidence");
-    await requiredFile(inside(appRoot, path.resolve(appRoot, suggestions.evidenceFile), "suggestions evidence"), "suggestions evidence");
+    const evidencePath = await confinedPath(appRoot, path.resolve(appRoot, suggestions.evidenceFile), "suggestions evidence");
+    await requiredFile(evidencePath, "suggestions evidence");
   } else if (suggestions.enabled !== false || suggestions.providerCapability !== "submit-only" || suggestions.evidenceFile !== null) {
     fail("disabled place suggestions must remain submit-only without provider evidence");
   }
+  const consumerEntry = manifest.consumerEntryModule;
+  if (!consumerEntry || !manifest.integrationFiles.includes(consumerEntry.sourceFile)) fail("consumer entry sourceFile must be a declared integration file");
+  if (/\.html?$/i.test(consumerEntry.sourceFile)) fail("consumer entry sourceFile must be a JavaScript or TypeScript module");
 
-  const entryPath = inside(appRoot, path.resolve(appRoot, manifest.entryHtml), "entry HTML");
-  const entry = stripHtmlComments((await requiredFile(entryPath, "entry HTML")).toString("utf8"));
-  const vendorWeb = normalizedWebPath(manifest.essentialsContract.vendorDirectory);
+  const entryPath = await confinedPath(appRoot, path.resolve(appRoot, manifest.entryHtml), "entry HTML");
+  const entryRaw = (await requiredFile(entryPath, "entry HTML")).toString("utf8");
+  if (containsEscapedScriptData(entryRaw)) fail("escaped or unterminated inline script data is forbidden");
+  const entry = extractHtmlMarkup(entryRaw);
+  if (htmlTags(entry, "base").length) fail("base elements are forbidden because runtime URLs must retain manifest semantics");
+  if (htmlTags(entry, "template").length) fail("inert template elements cannot provide essentials integration evidence");
+  const vendorWeb = manifest.essentialsContract.runtimeBasePath;
   const baseCss = `${vendorWeb}/milos-app-essentials.css`;
   const themeCss = `${vendorWeb}/milos-app-essentials-theme.css`;
   const bootstrap = `${vendorWeb}/bootstrap.js`;
-  const stylesheetLinks = htmlTags(entry, "link").filter(({ source }) => (attributeValue(source, "rel") || "").toLowerCase().split(/\s+/).includes("stylesheet"));
-  const baseLink = stylesheetLinks.find(({ source }) => pathEndsWith(attributeValue(source, "href"), baseCss));
-  const themeLink = stylesheetLinks.find(({ source }) => pathEndsWith(attributeValue(source, "href"), themeCss));
+  const stylesheetLinks = htmlTags(entry, "link").filter(({ source }) => isActiveCriticalStylesheet(source));
+  const baseLink = stylesheetLinks.find(({ source }) => localUrlEquals(attributeValue(source, "href"), baseCss));
+  const themeLink = stylesheetLinks.find(({ source }) => localUrlEquals(attributeValue(source, "href"), themeCss));
   if (!baseLink || !themeLink) fail("entry HTML must load both local essentials stylesheets as link elements");
   const moduleScripts = htmlTags(entry, "script").filter(({ source }) => (attributeValue(source, "type") || "").toLowerCase() === "module");
-  const bootstrapScript = moduleScripts.find(({ source }) => pathEndsWith(attributeValue(source, "src"), bootstrap));
+  if (moduleScripts.some(({ source }) => /\/[\t\n\f\r ]*>$/.test(source))) fail("module scripts must use explicit closing tags");
+  if (moduleScripts.some(({ source }) => hasAttribute(source, "integrity"))) fail("local module scripts must not use unverifiable integrity metadata");
+  const bootstrapScript = moduleScripts.find(({ source }) => localUrlEquals(attributeValue(source, "src"), bootstrap));
   if (!bootstrapScript) fail("entry HTML must load the local generated bootstrap as a module script");
+  const consumerScript = moduleScripts.find(({ source }) => localUrlEquals(attributeValue(source, "src"), consumerEntry.runtimePath));
+  if (!consumerScript) fail("entry HTML must load the declared consumer entry module");
   const firstModule = moduleScripts[0]?.index ?? -1;
+  if (bootstrapScript.index !== firstModule) fail("essentials bootstrap must be the first module script");
+  if (consumerScript.index <= bootstrapScript.index) fail("consumer entry module must load after essentials bootstrap");
+  if (moduleScripts.some(({ source }) => hasAttribute(source, "async"))) fail("async module scripts are forbidden because bootstrap order must be deterministic");
   if (firstModule >= 0 && (baseLink.index > firstModule || themeLink.index > firstModule)) fail("critical stylesheets must load before module scripts");
   if (/https?:[^"']+milos-app-essentials/i.test(entry)) fail("remote essentials runtime is forbidden");
   if (/data:text\/(?:css|javascript)/i.test(entry)) fail("inlined data runtime is forbidden");
 
-  const integrationSources = [];
+  const integrationMarkupSources = [];
+  const javascriptIntegrationSources = [];
   for (const relative of manifest.integrationFiles || []) {
-    const file = inside(appRoot, path.resolve(appRoot, relative), "integration file");
+    const file = await confinedPath(appRoot, path.resolve(appRoot, relative), "integration file");
     const raw = (await requiredFile(file, "integration file")).toString("utf8");
-    integrationSources.push(stripJavaScriptComments(stripHtmlComments(raw)));
+    const htmlFile = /\.html?$/i.test(relative);
+    const jsxFile = /\.[jt]sx$/i.test(relative);
+    if (!htmlFile) javascriptIntegrationSources.push({ raw, jsxFile });
+    integrationMarkupSources.push(extractHtmlMarkup(htmlFile ? raw : extractJavaScriptMarkup(raw, jsxFile)));
   }
-  const allSources = [stripJavaScriptComments(entry), ...integrationSources].join("\n");
-  if (!/<milos-share-button(?:\s|>)/i.test(allSources)) fail("shared share control is required");
+  const markupSources = [entry, ...integrationMarkupSources].join("\n");
+  if (htmlTags(markupSources, "template").length) fail("inert template elements cannot provide essentials integration evidence");
+  const codeTokens = javascriptIntegrationSources.flatMap(({ raw, jsxFile }) => javascriptCodeTokens(jsxFile ? maskJsxText(raw) : raw, jsxFile));
+  if (htmlTags(markupSources, "milos-share-button").length === 0) fail("shared share control is required");
+  if (!hasMethodCall(codeTokens, "setPayloadProvider")) fail("shared share control requires an app-owned payload provider");
   if (manifest.privacy?.mode === "no-cookies") {
-    if (!/data-milos-privacy-info/i.test(allSources) || !allSources.includes(manifest.privacy.privacyUrl)) fail("no-cookies requires persistent consumer-owned privacy information");
+    const privacyLink = htmlTags(markupSources, "a").map(({ source }) => source).find((source) => hasAttribute(source, "data-milos-privacy-info") && attributeValue(source, "href") === manifest.privacy.privacyUrl);
+    if (!privacyLink) fail("no-cookies requires persistent consumer-owned privacy information linked to the exact manifest privacyUrl");
   }
-  if (manifest.features?.datePicker && !/<milos-date-picker(?:\s|>)/i.test(allSources)) fail("enabled date picker is missing");
-  if (manifest.features?.placeSearch && !/<milos-place-search(?:\s|>)/i.test(allSources)) fail("enabled place search is missing");
+  if (manifest.features?.datePicker && htmlTags(markupSources, "milos-date-picker").length === 0) fail("enabled date picker is missing");
+  if (manifest.features?.placeSearch && htmlTags(markupSources, "milos-place-search").length === 0) fail("enabled place search is missing");
+  if (manifest.features?.placeSearch && !hasMethodCall(codeTokens, "setSearchProvider")) fail("enabled place search requires an app-owned search provider");
   if (suggestions.enabled) {
-    if (!/setSuggestionsProvider\s*\(/.test(allSources)) fail("enabled place suggestions require an app-owned suggestions provider");
+    if (!hasMethodCall(codeTokens, "setSuggestionsProvider")) fail("enabled place suggestions require an app-owned suggestions provider");
   }
 
   for (const marker of ["data-milos-app-loading", "data-milos-loading-card", "data-milos-loading-icon", "data-milos-loading-title", "data-milos-loading-message", "data-milos-loading-progress"]) {
-    if (!new RegExp(`<[a-z][^>]*\\s${marker}(?:\\s*=|\\s|/?>)`, "i").test(entry)) fail(`startup marker is missing: ${marker}`);
+    if (!htmlStartTags(entry).some(({ source }) => hasAttribute(source, marker))) fail(`startup marker is missing: ${marker}`);
   }
-  const iconPath = normalizedWebPath(manifest.loading?.iconPath);
-  const loadingIcon = htmlTags(entry, "img").map(({ source }) => source).find((source) => hasAttribute(source, "data-milos-loading-icon") && pathEndsWith(attributeValue(source, "src"), iconPath));
+  const iconPath = manifest.loading?.iconPath;
+  const iconFile = await confinedPath(appRoot, path.resolve(appRoot, iconPath), "loading icon");
+  await requiredFile(iconFile, "loading icon");
+  const loadingIcon = htmlTags(entry, "img").map(({ source }) => source).find((source) => hasAttribute(source, "data-milos-loading-icon") && localUrlEquals(attributeValue(source, "src"), iconPath));
   if (!loadingIcon) fail("loading icon must use the app-owned manifest iconPath");
   const width = Number(attributeValue(loadingIcon, "width"));
   const height = Number(attributeValue(loadingIcon, "height"));
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 56 || height > 56) fail("loading icon needs explicit width/height no larger than 56");
-  if (!/markMilosAppReady\s*\(|(?:CustomEvent|Event)\s*\(\s*["']milosapps:ready["']/i.test(allSources)) fail("app must explicitly signal readiness");
+  if (!hasCallPath(codeTokens, ["globalThis", "milosAppEssentials", "ready"])) fail("app must explicitly call the generated globalThis.milosAppEssentials.ready() API");
 
   return Object.freeze({ appKey: manifest.appKey, version: VERSION, vendorRoot, features: Object.freeze({ ...manifest.features }) });
 }

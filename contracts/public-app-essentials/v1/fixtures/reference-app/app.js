@@ -18,5 +18,5 @@ share.setPayloadProvider(() => ({
 }));
 
 requestAnimationFrame(() => {
-  document.dispatchEvent(new CustomEvent("milosapps:ready"));
+  globalThis.milosAppEssentials.ready();
 });

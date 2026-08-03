@@ -8,9 +8,12 @@ frameworkneutral und dependency-frei. Er ersetzt weder
 
 ## Liefermodell
 
-Jede App übernimmt eine feste Shared-Revision mit `tools/sync.mjs` in ihr
-eigenes Repository. Es gibt kein CDN und keinen Laufzeitimport aus dem
-Shared-Repository. Sechs Dateien werden gemeinsam gelockt:
+Jede App übernimmt eine feste Shared-Revision mit dem `tools/sync.mjs` genau
+dieser Revision in ihr eigenes Repository. Es gibt kein CDN und keinen
+Laufzeitimport aus dem Shared-Repository. Der unveränderliche Release hasht
+exakt fünf Quellartefakte: Basis-CSS, Runtime-JS, portabler Verifier,
+Manifest-Schema und Sync-Generator. Der Sync erzeugt daraus pro App einen
+exakten Lock über sechs Verbraucherartefakte:
 
 - `milos-app-essentials.css`
 - `milos-app-essentials-theme.css`
@@ -19,35 +22,60 @@ Shared-Repository. Sechs Dateien werden gemeinsam gelockt:
 - `verify.mjs`
 - `essentials-manifest.schema.json`
 
-Der Sync liest diese Bytes nur dann ein, wenn sie bytegleich im angegebenen
-Shared-Commit liegen und dessen `release.json`-Prüfsummen erfüllen. Ein
-veränderter Arbeitsbaum kann deshalb keinen Lock unter fremdem Release-SHA
-erzeugen. Manifest-Schema und portabler Verifier lehnen fehlende Pflichtfelder,
-zusätzliche Felder und `startup=false` fail-closed ab.
+Theme-CSS und Bootstrap sind deterministische, manifestabhängige Ausgaben;
+die übrigen vier Verbraucherdateien stammen aus dem Release. Der Sync arbeitet
+nur, wenn alle fünf Release-Quellen bytegleich im angegebenen Commit liegen
+und dessen `release.json`-Prüfsummen erfüllen. Ein veränderter Arbeitsbaum kann
+deshalb keinen Lock unter fremdem Release-SHA erzeugen. Manifest-Schema und
+portabler Verifier lehnen fehlende Pflichtfelder, zusätzliche Felder,
+`startup=false`, Pfadfluchten, Junctions/Symlinks und hard-verlinkte Ziele
+fail-closed ab. Die Manifestkonfiguration wird als kanonisches JSON semantisch
+gehasht; reine Einrückung oder Objektschlüssel-Reihenfolge verändert den Lock
+nicht.
 
 Die vier Browserartefakte müssen nach dem Verbraucher-Build weiterhin als
 Same-Origin-Dateien vorliegen. JavaScript wird als
 `text/javascript; charset=utf-8`, CSS als `text/css; charset=utf-8`
 ausgeliefert. `data:`-Re-Inlining ist unter `style-src 'self'` unzulässig.
+Verifier und Schema sind Quell-/Lockartefakte, keine öffentliche Runtime;
+fail-closed Portale dürfen direkte HTTP-Routen zu ihnen weiterhin mit 404
+ablehnen.
 
 ## Integration
 
 1. `essentials-manifest.example.json` als `milos-essentials.json` in das
    App-Repository übernehmen und App-Key, Texte, Module, Theme sowie den
-   vollständigen Shared-Commit eintragen.
+   vollständigen Shared-Commit eintragen. `$schema` zeigt relativ auf das
+   vendorte `essentials-manifest.schema.json`. `vendorDirectory` ist das
+   Dateisystemziel im App-Repository; `runtimeBasePath` ist der öffentlich
+   ausgelieferte Same-Origin-URL-Pfad. Beide dürfen bei geroutetem Hosting
+   bewusst verschieden sein, etwa bei ASP.NET-Assetrouten.
+   `consumerEntryModule.sourceFile` benennt zusätzlich genau eine geprüfte
+   JavaScript-/TypeScript-Datei aus `integrationFiles`;
+   `consumerEntryModule.runtimePath` ist deren exakte öffentliche Modul-URL.
 2. Synchronisieren:
 
    ```text
-   node <shared>/contracts/public-app-essentials/v1/tools/sync.mjs \
+   node <shared-at-exact-tag>/contracts/public-app-essentials/v1/tools/sync.mjs \
      --app-root <app-root> \
      --manifest milos-essentials.json \
      --source-commit <full-shared-sha>
    ```
 
-3. Beide CSS-Dateien vor allen Modulskripten laden. So ist die Icon-Grenze
-   bereits wirksam, bevor Web Components und App-Code registriert sind.
+   Der ausgeführte Sync-Generator und `--source-commit` müssen aus demselben
+   unveränderlichen Commit/Tag stammen.
+3. Beide CSS-Dateien über `runtimeBasePath` vor allen Modulskripten laden. So
+   ist die Icon-Grenze bereits wirksam, bevor Web Components und App-Code
+   registriert sind. `bootstrap.js` wird ebenfalls über diesen URL-Pfad als
+   **erstes** Modul geladen; erst danach folgen App-Module. Modulskripte dürfen
+   hier kein `async` tragen, damit Runtime, Custom Elements und der globale
+   Ready-Endpunkt deterministisch vor App-Aufrufen registriert sind. Bootstrap
+   und Verbraucherentry verwenden echte Script-Endtags. `integrity`, ein
+   umschreibendes `<base>` sowie inaktive oder alternative Critical-CSS-Links
+   sind für diese lokalen, bytegelockten Dateien unzulässig.
 4. Den Loader unmittelbar im `body` ausgeben. Das Icon ist app-eigen, erhält
-   explizite `width`/`height` und bleibt höchstens 56 px groß:
+   explizite `width`/`height`, muss als lokale SVG-Datei vorhanden sein und
+   bleibt höchstens 56 px groß:
 
    ```html
    <section data-milos-app-loading role="status" aria-live="polite">
@@ -65,17 +93,36 @@ ausgeliefert. `data:`-Re-Inlining ist unter `style-src 'self'` unzulässig.
    signalisiert sie das ausdrücklich:
 
    ```js
-   document.dispatchEvent(new CustomEvent("milosapps:ready"));
+   globalThis.milosAppEssentials.ready();
+   ```
+
+   In TypeScript/TSX kann die App den generierten Global einmal eng typisieren
+   und danach denselben verifizierbaren Aufruf verwenden:
+
+   ```ts
+   declare global {
+     var milosAppEssentials: { ready(): void };
+   }
+   globalThis.milosAppEssentials.ready();
+   export {};
    ```
 
    Bis dahin bleibt der Startzustand sichtbar. Ein Timer darf eine fachlich
-   noch nicht bereite App nicht vortäuschen.
+   noch nicht bereite App nicht vortäuschen. Die API verhindert zusätzlich,
+   dass ein frühes Event vor der Registrierung des Empfängers verloren geht;
+   Apps dispatchen das interne `milosapps:ready`-Ereignis nicht selbst.
 6. Vor Commit den vendorten Prüfer ausführen:
 
    ```text
    node vendor/milosapps-essentials/v1/verify.mjs \
      --app-root . --manifest milos-essentials.json
    ```
+
+Der portable Verifier belegt reale Quellmarker, Providerverdrahtung, Lock und
+Auslieferungspfade. Die Verbraucher-Browser-QA bleibt zusätzlich verpflichtend:
+Sie weist nach, dass die Komponenten tatsächlich gerendert sind, der Loader
+erst bei Fachbereitschaft verschwindet und der persistente Datenschutzlink auf
+die exakte `privacyUrl` führt.
 
 ## Datenschutz ohne Scheinwahl
 
@@ -103,14 +150,22 @@ benötigt einen künftigen, getrennten Consent-Vertrag; v1.1 enthält keinen
 solchen Vertrag. Bei `usesLocalStorage=false` muss `storagePurposes` leer sein.
 Diese technische Produktgrenze ist keine Rechtsberatung.
 
+`usesLocalStorage` bezeichnet in diesem Manifest ausschließlich Web Storage
+(`localStorage`/`sessionStorage`). Service Worker, Cache Storage, IndexedDB,
+Geräteberechtigungen und Downloads werden nicht daraus erraten: Jede App führt
+dafür ihr getrenntes Geräte-/Speicherinventar und legt tatsächliche Nutzung
+wahrheitsgemäß sichtbar offen.
+
 Auch `essential-only` speichert das Schließen nicht: Der kompakte Sachhinweis
-wird nur für das aktuelle Dokument entfernt und kann beim nächsten Aufruf
-erneut erscheinen. Damit erzeugt der Shared-Baustein keinen optionalen
-Komfortschlüssel. Nur bei deklariertem `usesLocalStorage=true` entfernt die Runtime beim ersten
-Start von v1.1 ausschließlich den veralteten app-eigenen Schlüssel
-`milosapps.<appKey>.privacyNotice.v1`. Bei `usesLocalStorage=false` greift die
-Runtime nicht auf Web Storage zu. Fremde App-Keys, andere lokale Einstellungen
-und alle fachlichen App-Daten bleiben unangetastet.
+wird für das gesamte aktuelle Dokument entfernt und auch durch ein wiederholtes
+Readiness-Signal nicht erneut geöffnet; beim nächsten Seitenaufruf darf er
+wieder erscheinen. Damit erzeugt der Shared-Baustein keinen optionalen
+Komfortschlüssel. Nur bei deklariertem `usesLocalStorage=true` entfernt die
+Runtime beim ersten Start von v1.1.1 die beiden veralteten app-eigenen Schlüssel
+`milosapps.<appKey>.privacyNotice.v1` und
+`milosapps.<appKey>.essentialCookieInfo.v1`. Bei `usesLocalStorage=false` greift
+die Runtime nicht auf Web Storage zu. Fremde App-Keys, andere lokale
+Einstellungen und alle fachlichen App-Daten bleiben unangetastet.
 
 ## Teilen
 
@@ -199,7 +254,11 @@ pauschales Hostwort-Verbot über sämtlichen App-Code.
 ## Migration von 1.0.0 oder 1.1.0 auf 1.1.1
 
 1. `essentialsContract.version` auf `1.1.1` und `sharedCommit` auf den
-   unveränderlichen v1.1.1-Releasecommit setzen; danach alle sechs Artefakte neu
+   unveränderlichen v1.1.1-Releasecommit setzen. `$schema` auf das vendorte
+   Schema umstellen, `vendorDirectory` als Repositorypfad,
+   `runtimeBasePath` als tatsächlich ausgelieferten URL-Basispfad und
+   `consumerEntryModule` mit physischer Integrationsdatei plus exakter
+   öffentlicher Modul-URL ergänzen; danach alle sechs Verbraucherartefakte neu
    synchronisieren und locken.
 2. `features.placeSuggestions` ergänzen. Der sichere Standard ist:
    `enabled=false`, `minChars=3`, `debounceMs=350`,
@@ -218,27 +277,38 @@ pauschales Hostwort-Verbot über sämtlichen App-Code.
    nachweisen, Evidenzdatei eintragen, `consumer-autocomplete-proxy` deklarieren
    und separat `setSuggestionsProvider(...)` registrieren. Der normale
    `setSearchProvider(...)` bleibt die explizite Submit-Suche.
-7. `features.startup=true` beibehalten. Das Schema ist nun selbst Teil des
-   Locks; Themewerte sind ausschließlich lokale CSS-Farben oder eng benannte
-   app-eigene Custom Properties der Form `var(--token-name)`. Fallbacks,
-   `url()`-Assets und beliebige CSS-Ausdrücke bleiben verboten. So darf eine
-   App ihr geprüftes Hell-/Dunkel-Theme weiterverwenden, ohne fremde Ressourcen
-   oder Deklarationen in das generierte Theme einzuschleusen.
-8. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
+7. `features.startup=true` setzen beziehungsweise beibehalten und die komplette
+   statische Loaderstruktur ergänzen. Beide Essentials-CSS-Dateien stehen vor
+   allen Modulskripten. Erst bei echter Fachbereitschaft ruft der App-Code
+   `globalThis.milosAppEssentials.ready()` auf; ein altes, direkt dispatchtes
+   Ready-Event reicht nicht. Das gilt ausdrücklich auch für Portal-v1.0-
+   Verbraucher, die zuvor `startup=false` oder keinen Loader hatten.
+8. Das Schema ist nun selbst Teil des Locks. Themewerte sind ausschließlich
+   gültige Hex-Farben oder eng benannte app-eigene Custom Properties der Form
+   `var(--token-name)`. Fallbacks, `url()`-Assets und beliebige CSS-Ausdrücke
+   bleiben verboten. So darf eine App ihr geprüftes Hell-/Dunkel-Theme
+   weiterverwenden, ohne fremde Ressourcen oder Deklarationen einzuschleusen.
+9. Im Vendorverzeichnis die enge Regel `* text eol=lf` setzen und den Verifier
+   nach einem frischen Windows-Recheckout mit `core.autocrlf=true` erneut
+   ausführen. Das schützt alle sechs bytegenauen Textartefakte.
+10. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
    Escape/Abort/Stale-Result, Localewechsel und Disconnect-Cleanup in der Verbraucher-
    Browsermatrix prüfen.
 
 Die Runtime entfernt bei der Migration nur
-`milosapps.<eigener-appKey>.privacyNotice.v1`. Dieser v1.0-Komfortwert war weder
-Consent noch fachlicher Nutzerdatensatz und wird nicht in den neuen
-Essential-Hinweiszustand übernommen.
+`milosapps.<eigener-appKey>.privacyNotice.v1` und den tatsächlich von v1.1.0
+geschriebenen Vorgänger `milosapps.<eigener-appKey>.essentialCookieInfo.v1`.
+Diese Komfortwerte waren weder Consent noch fachliche Nutzerdatensätze und
+werden nicht in den neuen Essential-Hinweiszustand übernommen.
 
 ## Pflicht-QA pro Verbraucher
 
 - frischer Start und langsamer Start: Icon höchstens 56 px Desktop / 48 px
-  mobil, kein ungestylter Shell-Icon-Flash;
+  mobil, kein ungestylter Shell-Icon-Flash; Loader verschwindet erst nach
+  `globalThis.milosAppEssentials.ready()` und tatsächlich fertiger App;
 - Datenschutzmodus in DE/EN: `no-cookies` ohne Banner/State mit dauerhaftem
-  Link; `essential-only` als Sachhinweis ohne Consent-Sprache;
+  Link auf die exakte Manifest-`privacyUrl`; `essential-only` als Sachhinweis
+  ohne Consent-Sprache;
 - Teilen nativ sowie Clipboard-Fallback und abgebrochener Dialog; keine
   Layoutverschiebung und keine Erfolgsmeldung nach nativem Teilen; ausstehende
   Promises dürfen nach Disconnect/Reconnect weder Status noch Events ändern;
@@ -254,6 +324,8 @@ Essential-Hinweiszustand übernommen.
   Überlauf, mit 44-px-Zielen und sichtbarem Fokus;
 - echte Response-CSP `script-src 'self'; style-src 'self'`, externe Runtime-
   Dateien, korrekte MIME-Typen und SHA-256-Lock;
+- enge LF-Policy und erneuter sechsfacher Locknachweis nach einem frischen
+  Windows-Recheckout mit `core.autocrlf=true`;
 - DEV-Health, No-Login und `productionApproved=false`.
 
 Kalender und kontopflichtige Apps sind ausgeschlossen. Production benötigt

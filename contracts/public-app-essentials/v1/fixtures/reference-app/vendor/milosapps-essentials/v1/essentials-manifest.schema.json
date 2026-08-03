@@ -4,9 +4,9 @@
   "title": "MilosApps public app essentials manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["appKey", "ownerTask", "public", "loginRequired", "environment", "productionApproved", "entryHtml", "integrationFiles", "loading", "privacy", "features", "theme", "essentialsContract"],
+  "required": ["$schema", "appKey", "ownerTask", "public", "loginRequired", "environment", "productionApproved", "entryHtml", "consumerEntryModule", "integrationFiles", "loading", "privacy", "features", "theme", "essentialsContract"],
   "properties": {
-    "$schema": { "type": "string" },
+    "$schema": { "type": "string", "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|//|/|.*\\.\\.).*essentials-manifest\\.schema\\.json$" },
     "appKey": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "ownerTask": { "type": "string", "minLength": 1 },
     "public": { "const": true },
@@ -14,6 +14,15 @@
     "environment": { "enum": ["dev", "production"] },
     "productionApproved": { "type": "boolean" },
     "entryHtml": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.html$" },
+    "consumerEntryModule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceFile", "runtimePath"],
+      "properties": {
+        "sourceFile": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.(?:js|mjs|ts|tsx|jsx)$" },
+        "runtimePath": { "type": "string", "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|//)(?:(?:\\./)|/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*(?:/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*$" }
+      }
+    },
     "integrationFiles": {
       "type": "array",
       "minItems": 1,
@@ -61,7 +70,7 @@
           }
         },
         "optionalTracking": { "const": false },
-        "privacyUrl": { "type": "string", "pattern": "^https://" }
+        "privacyUrl": { "type": "string", "pattern": "^https://(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?::[0-9]{1,5})?(?:[/?#]\\S*)?$" }
       }
     },
     "features": {
@@ -125,25 +134,26 @@
       "additionalProperties": false,
       "required": ["accent", "accentContrast", "surface", "surfaceSoft", "text", "muted", "border", "focus"],
       "properties": {
-        "accent": { "type": "string", "pattern": "^(?:#[0-9A-Fa-f]{3,8}|(?:rgb|rgba|hsl|hsla)\\([0-9+\\-.%, /deg]+\\)|[A-Za-z]+|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
-        "accentContrast": { "type": "string", "pattern": "^(?:#[0-9A-Fa-f]{3,8}|(?:rgb|rgba|hsl|hsla)\\([0-9+\\-.%, /deg]+\\)|[A-Za-z]+|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
-        "surface": { "type": "string", "pattern": "^(?:#[0-9A-Fa-f]{3,8}|(?:rgb|rgba|hsl|hsla)\\([0-9+\\-.%, /deg]+\\)|[A-Za-z]+|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
-        "surfaceSoft": { "type": "string", "pattern": "^(?:#[0-9A-Fa-f]{3,8}|(?:rgb|rgba|hsl|hsla)\\([0-9+\\-.%, /deg]+\\)|[A-Za-z]+|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
-        "text": { "type": "string", "pattern": "^(?:#[0-9A-Fa-f]{3,8}|(?:rgb|rgba|hsl|hsla)\\([0-9+\\-.%, /deg]+\\)|[A-Za-z]+|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
-        "muted": { "type": "string", "pattern": "^(?:#[0-9A-Fa-f]{3,8}|(?:rgb|rgba|hsl|hsla)\\([0-9+\\-.%, /deg]+\\)|[A-Za-z]+|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
-        "border": { "type": "string", "pattern": "^(?:#[0-9A-Fa-f]{3,8}|(?:rgb|rgba|hsl|hsla)\\([0-9+\\-.%, /deg]+\\)|[A-Za-z]+|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
-        "focus": { "type": "string", "pattern": "^(?:#[0-9A-Fa-f]{3,8}|(?:rgb|rgba|hsl|hsla)\\([0-9+\\-.%, /deg]+\\)|[A-Za-z]+|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" }
+        "accent": { "type": "string", "pattern": "^(?:#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
+        "accentContrast": { "type": "string", "pattern": "^(?:#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
+        "surface": { "type": "string", "pattern": "^(?:#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
+        "surfaceSoft": { "type": "string", "pattern": "^(?:#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
+        "text": { "type": "string", "pattern": "^(?:#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
+        "muted": { "type": "string", "pattern": "^(?:#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
+        "border": { "type": "string", "pattern": "^(?:#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" },
+        "focus": { "type": "string", "pattern": "^(?:#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})|var\\(--[a-z0-9]+(?:-[a-z0-9]+)*\\))$" }
       }
     },
     "essentialsContract": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "version", "sharedCommit", "vendorDirectory"],
+      "required": ["id", "version", "sharedCommit", "vendorDirectory", "runtimeBasePath"],
       "properties": {
         "id": { "const": "public-app-essentials/v1" },
         "version": { "const": "1.1.1" },
         "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-        "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" }
+        "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" },
+        "runtimeBasePath": { "type": "string", "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|//)(?:(?:\\./)|/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*(?:/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*$" }
       }
     }
   },

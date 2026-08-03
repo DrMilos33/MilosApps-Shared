@@ -8,8 +8,21 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function fakeNode() {
-  return {
+let lifecycleInvocation = 0;
+
+function dataKey(name) {
+  return name.slice(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function matchesSelector(node, selector) {
+  const dataAttribute = /^\[data-([a-z0-9-]+)\]$/.exec(selector);
+  if (dataAttribute) return Object.hasOwn(node.dataset, dataKey(`data-${dataAttribute[1]}`));
+  return node.tagName === selector.toUpperCase();
+}
+
+function fakeNode(tagName = "div") {
+  const node = {
+    tagName: tagName.toUpperCase(),
     dataset: {},
     disabled: false,
     isConnected: true,
@@ -18,17 +31,60 @@ function fakeNode() {
     hidden: false,
     children: [],
     attributes: new Map(),
-    setAttribute(name, value) { this.attributes.set(name, String(value)); },
+    listeners: new Map(),
+    parentNode: null,
+    setAttribute(name, value) {
+      this.attributes.set(name, String(value));
+      if (name.startsWith("data-")) this.dataset[dataKey(name)] = String(value);
+    },
     removeAttribute(name) {
       this.attributes.delete(name);
-      if (name.startsWith("data-")) {
-        const key = name.slice(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-        delete this.dataset[key];
-      }
+      if (name.startsWith("data-")) delete this.dataset[dataKey(name)];
     },
-    replaceChildren(...nodes) { this.children = nodes; },
+    append(...nodes) {
+      nodes.forEach((child) => {
+        child.parentNode = this;
+        child.isConnected = this.isConnected;
+        this.children.push(child);
+      });
+    },
+    replaceChildren(...nodes) {
+      this.children.forEach((child) => { child.parentNode = null; });
+      this.children = [];
+      this.append(...nodes);
+    },
+    remove() {
+      if (this.parentNode) this.parentNode.children = this.parentNode.children.filter((child) => child !== this);
+      this.parentNode = null;
+      this.isConnected = false;
+    },
+    addEventListener(type, listener) {
+      const listeners = this.listeners.get(type) || [];
+      listeners.push(listener);
+      this.listeners.set(type, listeners);
+    },
+    dispatchEvent(event) {
+      for (const listener of this.listeners.get(event.type) || []) listener.call(this, event);
+      return true;
+    },
+    querySelector(selector) {
+      return this.querySelectorAll(selector)[0] || null;
+    },
+    querySelectorAll(selector) {
+      const selectors = selector.split(",").map((value) => value.trim());
+      const matches = [];
+      const visit = (parent) => {
+        parent.children.forEach((child) => {
+          if (selectors.some((candidate) => matchesSelector(child, candidate))) matches.push(child);
+          visit(child);
+        });
+      };
+      visit(this);
+      return matches;
+    },
     scrollIntoView() {}
   };
+  return node;
 }
 
 export async function validateLifecycle(runtimeUrl) {
@@ -41,6 +97,9 @@ export async function validateLifecycle(runtimeUrl) {
   const original = {
     HTMLElement: globalThis.HTMLElement,
     CustomEvent: globalThis.CustomEvent,
+    customElements: globalThis.customElements,
+    document: globalThis.document,
+    localStorage: globalThis.localStorage,
     navigator: Object.getOwnPropertyDescriptor(globalThis, "navigator"),
     window: globalThis.window
   };
@@ -52,18 +111,57 @@ export async function validateLifecycle(runtimeUrl) {
       this.nodes = new Map();
       this.events = [];
       this.attributes = new Map();
+      this.children = [];
     }
-    hasAttribute() { return false; }
-    getAttribute() { return null; }
+    hasAttribute(name) { return this.attributes.has(name); }
+    getAttribute(name) { return this.attributes.get(name) ?? null; }
     setAttribute(name, value) { this.attributes.set(name, String(value)); }
-    querySelector(selector) { return this.nodes.get(selector) || null; }
+    removeAttribute(name) { this.attributes.delete(name); }
+    append(...nodes) {
+      nodes.forEach((node) => {
+        node.parentNode = this;
+        this.children.push(node);
+      });
+    }
+    replaceChildren(...nodes) {
+      this.children.forEach((node) => { node.parentNode = null; });
+      this.children = [];
+      this.append(...nodes);
+    }
+    querySelector(selector) { return this.nodes.get(selector) || this.children.find((node) => matchesSelector(node, selector)) || null; }
     dispatchEvent(event) { this.events.push(event); return true; }
   }
 
   try {
+    const body = fakeNode("body");
+    const documentListeners = new Map();
+    const removedStorageKeys = [];
+    const storageWrites = [];
     globalThis.HTMLElement = FakeHTMLElement;
     globalThis.CustomEvent = class {
       constructor(type, options = {}) { this.type = type; Object.assign(this, options); }
+    };
+    globalThis.customElements = {
+      definitions: new Map(),
+      define(name, definition) { this.definitions.set(name, definition); },
+      get(name) { return this.definitions.get(name); }
+    };
+    globalThis.document = {
+      title: "Lifecycle regression",
+      documentElement: { lang: "de" },
+      body,
+      createElement: (tagName) => fakeNode(tagName),
+      querySelector: (selector) => body.querySelector(selector),
+      querySelectorAll: (selector) => body.querySelectorAll(selector),
+      addEventListener(type, listener) {
+        const listeners = documentListeners.get(type) || [];
+        listeners.push(listener);
+        documentListeners.set(type, listeners);
+      }
+    };
+    globalThis.localStorage = {
+      removeItem(key) { removedStorageKeys.push(key); },
+      setItem(key, value) { storageWrites.push([key, value]); }
     };
     globalThis.window = { isSecureContext: true, location: { href: "https://example.test/app" } };
 
@@ -73,7 +171,14 @@ export async function validateLifecycle(runtimeUrl) {
       value: { share: () => nativeShare.promise }
     });
 
-    const { MilosDatePicker, MilosPlaceSearch, MilosShareButton } = await import(`${runtimeUrl.href}?lifecycle-regression=1`);
+    const isolatedRuntimeUrl = new URL(runtimeUrl);
+    isolatedRuntimeUrl.searchParams.set("lifecycle-regression", String(++lifecycleInvocation));
+    const { initMilosAppEssentials, MilosDatePicker, MilosPlaceSearch, MilosShareButton } = await import(isolatedRuntimeUrl.href);
+
+    const preconnectedPlace = new MilosPlaceSearch();
+    preconnectedPlace.setLocateProvider(async () => null);
+    preconnectedPlace.connectedCallback();
+    assert(preconnectedPlace.locateButton.hidden === false, "locate provider registered before first connection makes its button visible");
 
     const share = new MilosShareButton();
     share.dataset.milosReady = "true";
@@ -153,6 +258,12 @@ export async function validateLifecycle(runtimeUrl) {
     datePicker.commit("2026-08-03");
     assert(datePicker.events.filter(({ type }) => type === "change").length === 1, "date commit dispatches exactly one host change event");
     assert(datePicker.events.filter(({ type }) => type === "milosapps:datechange").length === 1, "date commit dispatches exactly one semantic event");
+    datePicker.commit("");
+    assert(datePicker.value === "" && datePicker.input.value === "" && datePicker.yearSelect.value === "", "optional date can be cleared without stale state");
+    assert(datePicker.events.filter(({ type }) => type === "change").length === 2, "date clear dispatches exactly one replacement host event");
+    assert(datePicker.events.filter(({ type }) => type === "milosapps:datechange").at(-1)?.detail?.value === "", "date clear dispatches an empty semantic value");
+    datePicker.commit("2026-02-31");
+    assert(datePicker.value === "" && datePicker.input.value === "" && datePicker.events.filter(({ type }) => type === "change").length === 2, "impossible calendar dates are rejected without events");
 
     const keyboardPlace = new MilosPlaceSearch();
     keyboardPlace.input = fakeNode();
@@ -194,11 +305,64 @@ export async function validateLifecycle(runtimeUrl) {
     selectedPlace.cancelLocate = () => {};
     selectedPlace.select({ name: "London", region: "England", country: "United Kingdom" });
     assert(selectedPlace.input.value === "London, England, United Kingdom", "selected place keeps name, region and country visible");
+
+    const essentials = initMilosAppEssentials({
+      appKey: "reference-app",
+      environment: "dev",
+      productionApproved: false,
+      loading: { appName: "Reference App", message: { de: "App wird geladen", en: "App is loading" } },
+      privacy: {
+        mode: "essential-only",
+        usesLocalStorage: true,
+        storagePurposes: [{
+          key: "milosapps.reference-app.locale",
+          purpose: "Sprachauswahl",
+          lifetime: "until-user-clears",
+          strictlyNecessary: true
+        }],
+        optionalTracking: false,
+        privacyUrl: "https://example.test/privacy"
+      },
+      features: {
+        startup: true,
+        privacyNotice: true,
+        share: true,
+        datePicker: false,
+        placeSearch: false,
+        placeSuggestions: {
+          enabled: false,
+          minChars: 3,
+          debounceMs: 350,
+          providerCapability: "submit-only",
+          evidenceFile: null
+        }
+      }
+    });
+    assert(
+      removedStorageKeys.length === 2
+        && removedStorageKeys[0] === "milosapps.reference-app.privacyNotice.v1"
+        && removedStorageKeys[1] === "milosapps.reference-app.essentialCookieInfo.v1",
+      "initialization removes both obsolete privacy persistence keys"
+    );
+    essentials.ready();
+    const privacyNotice = document.querySelector("[data-milos-privacy-notice]");
+    assert(privacyNotice, "ready displays the essential-only privacy notice");
+    privacyNotice.querySelector("[data-milos-privacy-dismiss]").dispatchEvent({ type: "click" });
+    assert(!document.querySelector("[data-milos-privacy-notice]"), "dismiss removes the privacy notice");
+    essentials.ready();
+    assert(!document.querySelector("[data-milos-privacy-notice]"), "repeated ready cannot reopen a notice dismissed in this document");
+    assert(storageWrites.length === 0, "document-scoped privacy dismissal does not persist consent state");
   } finally {
     if (original.HTMLElement === undefined) delete globalThis.HTMLElement;
     else globalThis.HTMLElement = original.HTMLElement;
     if (original.CustomEvent === undefined) delete globalThis.CustomEvent;
     else globalThis.CustomEvent = original.CustomEvent;
+    if (original.customElements === undefined) delete globalThis.customElements;
+    else globalThis.customElements = original.customElements;
+    if (original.document === undefined) delete globalThis.document;
+    else globalThis.document = original.document;
+    if (original.localStorage === undefined) delete globalThis.localStorage;
+    else globalThis.localStorage = original.localStorage;
     if (original.navigator) Object.defineProperty(globalThis, "navigator", original.navigator);
     else delete globalThis.navigator;
     if (original.window === undefined) delete globalThis.window;

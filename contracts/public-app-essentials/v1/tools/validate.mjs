@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, link, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { syncEssentials } from "./sync.mjs";
+import { assertImmutableReleaseCommit, syncEssentials } from "./sync.mjs";
 import { schemaErrors, verifyEssentials } from "../dist/verify.mjs";
 import { validateLifecycle } from "./lifecycle-regression.mjs";
 
@@ -12,6 +12,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = path.join(root, "fixtures", "reference-app");
 const zeroCommit = "0".repeat(40);
 const expectedConsumers = ["portal", "noodle-calculator", "sky", "cloud-post", "somewhere-now", "gravity-loop", "waste-guide", "daylight"].sort();
+const expectedReleaseArtifacts = ["dist/milos-app-essentials.css", "dist/milos-app-essentials.js", "dist/verify.mjs", "essentials-manifest.schema.json", "tools/sync.mjs"].sort();
+const expectedConsumerArtifacts = ["milos-app-essentials.css", "milos-app-essentials-theme.css", "milos-app-essentials.js", "bootstrap.js", "verify.mjs", "essentials-manifest.schema.json"].sort();
+const expectedRuntimeArtifacts = ["milos-app-essentials.css", "milos-app-essentials-theme.css", "milos-app-essentials.js", "bootstrap.js"];
 let assertions = 0;
 
 function assert(condition, message) {
@@ -43,19 +46,24 @@ const schema = await json("schema.json");
 const manifestSchemaContent = await readFile(path.join(root, "essentials-manifest.schema.json"));
 const manifestSchema = JSON.parse(manifestSchemaContent.toString("utf8"));
 const example = await json("essentials-manifest.example.json");
+const fixtureManifest = await json("fixtures/reference-app/essentials-manifest.json");
 const release = await json("release.json");
 const css = await readFile(path.join(root, "dist", "milos-app-essentials.css"));
 const runtime = await readFile(path.join(root, "dist", "milos-app-essentials.js"));
 const verifier = await readFile(path.join(root, "dist", "verify.mjs"));
-const syncText = await readFile(path.join(root, "tools", "sync.mjs"), "utf8");
+const syncContent = await readFile(path.join(root, "tools", "sync.mjs"));
+const syncText = syncContent.toString("utf8");
 const readme = await readFile(path.join(root, "README.md"), "utf8");
 
 assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.1", "contract id/version");
 assert(contract.status === "stable", "stable contract status");
+assert(schemaErrors(schema, contract).length === 0, "contract validates against its schema");
 assert(schema.properties.id.const === contract.id && schema.properties.version.const === contract.version, "contract schema pins id/version");
 assert(JSON.stringify([...contract.eligibleConsumers].sort()) === JSON.stringify(expectedConsumers), "exact eligible consumers");
 assert(contract.excludedConsumers.includes("calendar") && contract.excludedClasses.includes("login-required-app"), "calendar and login apps excluded");
 assert(contract.modules.startup.iconMaxPx === 56 && contract.modules.startup.iconMaxMobilePx === 48, "bounded startup icon");
+assert(contract.modules.startup.readyApi === "globalThis.milosAppEssentials.ready()" && contract.modules.startup.directConsumerEventDispatchAllowed === false, "race-safe generated readiness API");
+assert(contract.modules.privacyNotice.privacyInformationRequired === true && contract.modules.privacyNotice.runtimeNoticeRequiredByMode["no-cookies"] === false && contract.modules.privacyNotice.runtimeNoticeRequiredByMode["essential-only"] === true, "persistent privacy information is distinct from the mode-dependent runtime notice");
 assert(contract.modules.privacyNotice.fakeConsentForbidden && contract.modules.privacyNotice.optionalTrackingAllowed === false, "truthful privacy notice");
 assert(contract.modules.privacyNotice.optionalDeviceStorageAllowed === false && contract.modules.privacyNotice.storagePurposeDeclarationRequired && contract.modules.privacyNotice.storagePurposesMustBeStrictlyNecessary && contract.modules.privacyNotice.consentContractIncluded === false, "device storage is purpose-bound without implied consent");
 assert(contract.modules.privacyNotice.noCookiesBehavior === "no-banner-no-dismiss-state-persistent-consumer-info", "no-cookies has no banner or dismiss state");
@@ -71,20 +79,26 @@ assert(JSON.stringify(contract.modules.placeSearch.selectedDisplayFields) === JS
 assert(contract.modules.placeSearch.suggestions.abortRequired && contract.modules.placeSearch.suggestions.staleResultSuppressionRequired && contract.modules.placeSearch.suggestions.keyboardNavigationRequired, "suggestions lifecycle and keyboard contract");
 assert(contract.quality.controlsMinTargetPx === 44 && contract.quality.zoomViewport === "360x800@200%", "touch and reflow gates");
 assert(contract.quality.productionApproved === false, "Production blocked");
-assert(contract.delivery.manifestSchemaLocked && contract.delivery.sourceCommitProvenanceRequired && contract.quality.themeColorTokensOnly && contract.quality.commentMarkersDoNotCountAsIntegration, "schema, provenance, theme and real integration gates");
+assert(contract.delivery.manifestSchemaLocked && contract.delivery.manifestConfigurationLocked && contract.delivery.runtimeBasePathRequired && contract.delivery.consumerEntryModuleRequired && contract.delivery.sourceCommitProvenanceRequired && contract.delivery.bootstrapBeforeConsumerModulesRequired && contract.delivery.asyncModuleScriptsAllowed === false && contract.delivery.consumerArtifactCount === 6 && contract.delivery.releaseSourceArtifactCount === 5 && contract.delivery.symlinkedDestinationsForbidden && contract.delivery.hardLinkedDestinationsForbidden && contract.quality.themeColorTokensOnly && contract.quality.commentMarkersDoNotCountAsIntegration && contract.quality.consumerBrowserQaRequired, "schema, manifest, provenance, path, consumer entry, bootstrap, theme and real integration gates");
+assert(JSON.stringify(contract.delivery.runtimeAssets.map(({ file }) => file)) === JSON.stringify(expectedRuntimeArtifacts), "exact four browser runtime artifacts");
 assert(contract.quality.adaptiveThemeCustomPropertyPattern === "var(--[a-z0-9]+(?:-[a-z0-9]+)*)", "safe adaptive theme custom properties are explicit");
-assert(manifestSchema.properties.$schema.type === "string", "manifest permits schema declaration");
+assert(manifestSchema.required.includes("$schema") && manifestSchema.properties.$schema.type === "string", "manifest requires its vendored schema declaration");
 assert(schemaErrors(manifestSchema, example).length === 0, "example validates against the complete manifest schema");
 assert(Object.keys(example).every((key) => Object.hasOwn(manifestSchema.properties, key)), "example uses schema properties only");
 assert(example.public === true && example.loginRequired === false && example.productionApproved === false, "example public DEV boundary");
 assert(example.privacy.optionalTracking === false && example.features.privacyNotice === false && example.features.share === true, "example no-cookies/share boundary");
 assert(example.privacy.usesLocalStorage && example.privacy.storagePurposes.length === 1 && example.privacy.storagePurposes[0].strictlyNecessary === true, "example declares necessary app storage purpose");
 assert(example.features.placeSuggestions.enabled === false && example.features.placeSuggestions.providerCapability === "submit-only", "example defaults to submit-only place search");
+assert(example.$schema === "./vendor/milosapps-essentials/v1/essentials-manifest.schema.json" && example.essentialsContract.runtimeBasePath === "vendor/milosapps-essentials/v1" && example.consumerEntryModule.sourceFile === "app.js" && example.consumerEntryModule.runtimePath === "app.js", "example uses its locked schema and explicit runtime/consumer entry paths");
 assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.1", "release identity");
+assert(JSON.stringify(Object.keys(release.artifacts || {}).sort()) === JSON.stringify(expectedReleaseArtifacts), "exact release source artifact set");
 assert(release.artifacts["dist/milos-app-essentials.css"] === digest(css), "release CSS hash");
 assert(release.artifacts["dist/milos-app-essentials.js"] === digest(runtime), "release runtime hash");
 assert(release.artifacts["dist/verify.mjs"] === digest(verifier), "release verifier hash");
 assert(release.artifacts["essentials-manifest.schema.json"] === digest(manifestSchemaContent), "release manifest schema hash");
+assert(release.artifacts["tools/sync.mjs"] === digest(syncContent), "release sync generator hash");
+assertImmutableReleaseCommit("a".repeat(40), "a".repeat(40));
+await expectFailure(() => assertImmutableReleaseCommit("b".repeat(40), "a".repeat(40)), /immutable release tag commit/, "content-identical non-tag commit");
 
 const cssText = css.toString("utf8");
 for (const marker of [
@@ -115,8 +129,8 @@ for (const marker of ["navigator.share", "navigator.clipboard", "milosapps:datec
 assert(!runtimeText.includes("style.setProperty"), "runtime inline theme mutation forbidden");
 assert(!runtimeText.includes("queueSearch"), "place search must not autocomplete on input");
 assert(!runtimeText.includes("localeCopy().shared"), "native share success remains visually silent");
-assert(!runtimeText.includes("essentialCookieInfo") && !runtimeText.includes("storageSet("), "informational privacy dismissal never creates optional persistent state");
-assert(/input\.addEventListener\("change", \(event\) => \{ event\.stopPropagation\(\)/.test(runtimeText) && /year\.addEventListener\("change", \(event\) => \{ event\.stopPropagation\(\)/.test(runtimeText), "native date changes are stopped before the single host change event");
+assert(!runtimeText.includes("storageSet("), "informational privacy dismissal never creates optional persistent state");
+assert(/input\.addEventListener\("change", \(event\) => \{ event\.stopPropagation\(\)/.test(runtimeText) && /year\.addEventListener\("change", \(event\) => \{[\s\S]{0,80}?event\.stopPropagation\(\)/.test(runtimeText), "native date changes are stopped before the single host change event");
 assert(runtimeText.includes("direction > 0 ? 0 : this.results.length - 1"), "initial ArrowUp selects the final place option");
 assert(runtimeText.includes("currentQuery === query") && runtimeText.includes("[place.name, place.region, place.country]"), "place rejection and selected display retain current query and country");
 assert(/if \(this\.locale && this\.locale !== selected\)[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);[\s\S]+?cancelLocate\(\);/.test(runtimeText), "locale changes invalidate all place operations");
@@ -130,22 +144,41 @@ assert(/queueSuggestions\(\)[\s\S]+?cancelLocate\(\);[\s\S]+?cancelSuggestions\(
 assert(/select\(place\)[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);[\s\S]+?cancelLocate\(\);/.test(runtimeText), "place selection invalidates all place providers");
 assert(runtimeText.includes("isCurrentPlaceOperation") && runtimeText.includes("!signal?.aborted"), "place operations reject stale or aborted results");
 assert((runtimeText.match(/disconnectedCallback\(\)/g) || []).length >= 2, "share and place components clean up on disconnect");
-assert(runtimeText.includes('if (activeConfig.privacy.usesLocalStorage) storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`)'), "legacy privacy cleanup is app-namespaced and never accesses storage when disabled");
+assert(runtimeText.includes('storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`)') && runtimeText.includes('storageRemove(`milosapps.${activeConfig.appKey}.essentialCookieInfo.v1`)'), "both legacy privacy cleanup keys are app-namespaced and never accessed when storage is disabled");
 assert(runtimeText.includes("normalizeStoragePurposes") && runtimeText.includes("Optional device storage is forbidden"), "runtime rejects undeclared or optional device storage");
 assert(verifier.toString("utf8").includes('manifest.privacy?.mode !== "no-cookies"'), "verifier enumerates privacy modes");
 assert(verifier.toString("utf8").includes("validateStoragePurposes") && verifier.toString("utf8").includes("optional device storage is forbidden"), "verifier rejects optional device storage");
 assert(syncText.includes('execFileSync("git"') && syncText.includes("does not match --source-commit") && syncText.includes("release checksum mismatch"), "sync verifies Git-object and release provenance");
-assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 oder 1.1.0 auf 1.1.1") && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung"), "README explains migration, privacy and provider boundaries");
+assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 oder 1.1.0 auf 1.1.1") && readme.includes("runtimeBasePath") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains migration, readiness, privacy, LF and provider boundaries without the legacy event recipe");
 
 const lifecycleAssertions = await validateLifecycle(new URL("../dist/milos-app-essentials.js", import.meta.url));
-assert(lifecycleAssertions >= 12, "deterministic disconnect/reconnect lifecycle regressions");
+assert(lifecycleAssertions >= 27, "deterministic lifecycle, privacy, date and provider regressions");
 
-await syncEssentials({ "app-root": fixtureRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
 const fixture = await verifyEssentials(fixtureRoot, "essentials-manifest.json");
 assert(fixture.appKey === "reference-app" && fixture.version === "1.1.1", "reference fixture verifies");
+const fixtureLock = await json("fixtures/reference-app/vendor/milosapps-essentials/v1/essentials-lock.json");
+assert(JSON.stringify(Object.keys(fixtureLock.artifacts || {}).sort()) === JSON.stringify(expectedConsumerArtifacts), "exact consumer lock artifact set");
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), "milos-essentials-v1-"));
 try {
+  const freshFixtureRoot = path.join(tempRoot, "fresh-fixture");
+  await cp(fixtureRoot, freshFixtureRoot, { recursive: true });
+  await syncEssentials({ "app-root": freshFixtureRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  for (const artifact of [...expectedConsumerArtifacts, "essentials-lock.json"]) {
+    const checked = await readFile(path.join(fixtureRoot, "vendor", "milosapps-essentials", "v1", artifact));
+    const fresh = await readFile(path.join(freshFixtureRoot, "vendor", "milosapps-essentials", "v1", artifact));
+    assert(checked.equals(fresh), `checked reference fixture is deterministic: ${artifact}`);
+  }
+
+  const canonicalManifestRoot = path.join(tempRoot, "canonical-manifest");
+  await cp(fixtureRoot, canonicalManifestRoot, { recursive: true });
+  const canonicalManifestPath = path.join(canonicalManifestRoot, "essentials-manifest.json");
+  const canonicalManifest = JSON.parse(await readFile(canonicalManifestPath, "utf8"));
+  const reorderedManifest = Object.fromEntries(Object.entries(canonicalManifest).reverse());
+  await writeFile(canonicalManifestPath, `\n  ${JSON.stringify(reorderedManifest, null, 4)}\n`, "utf8");
+  const canonicalFixture = await verifyEssentials(canonicalManifestRoot, "essentials-manifest.json");
+  assert(canonicalFixture.appKey === "reference-app", "canonical manifest lock ignores formatting and object-key order");
+
   const tamperedRoot = path.join(tempRoot, "tampered");
   await cp(fixtureRoot, tamperedRoot, { recursive: true });
   await writeFile(path.join(tamperedRoot, "vendor", "milosapps-essentials", "v1", "milos-app-essentials.css"), "tampered", "utf8");
@@ -170,6 +203,22 @@ try {
   extraPropertyManifest.uncontracted = true;
   await writeFile(extraPropertyPath, `${JSON.stringify(extraPropertyManifest, null, 2)}\n`, "utf8");
   await expectFailure(() => verifyEssentials(extraPropertyRoot, "essentials-manifest.json"), /additional property/, "manifest additional properties");
+
+  const missingSchemaRoot = path.join(tempRoot, "missing-schema-reference");
+  await cp(fixtureRoot, missingSchemaRoot, { recursive: true });
+  const missingSchemaPath = path.join(missingSchemaRoot, "essentials-manifest.json");
+  const missingSchemaManifest = JSON.parse(await readFile(missingSchemaPath, "utf8"));
+  delete missingSchemaManifest.$schema;
+  await writeFile(missingSchemaPath, `${JSON.stringify(missingSchemaManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(missingSchemaRoot, "essentials-manifest.json"), /\$schema|required property/, "missing vendored schema reference");
+
+  const wrongSchemaRoot = path.join(tempRoot, "wrong-schema-reference");
+  await cp(fixtureRoot, wrongSchemaRoot, { recursive: true });
+  const wrongSchemaPath = path.join(wrongSchemaRoot, "essentials-manifest.json");
+  const wrongSchemaManifest = JSON.parse(await readFile(wrongSchemaPath, "utf8"));
+  wrongSchemaManifest.$schema = "./other/essentials-manifest.schema.json";
+  await writeFile(wrongSchemaPath, `${JSON.stringify(wrongSchemaManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(wrongSchemaRoot, "essentials-manifest.json"), /\$schema must resolve/, "wrong vendored schema reference");
 
   const startupDisabledRoot = path.join(tempRoot, "startup-disabled");
   await cp(fixtureRoot, startupDisabledRoot, { recursive: true });
@@ -226,6 +275,20 @@ try {
     "injected theme fallback"
   );
 
+  for (const [name, value] of [["invalid-hex-theme", "#12345"], ["unknown-name-theme", "banana"], ["invalid-function-theme", "rgb(,,,)"]]) {
+    const invalidThemeRoot = path.join(tempRoot, name);
+    await cp(fixtureRoot, invalidThemeRoot, { recursive: true });
+    const invalidThemePath = path.join(invalidThemeRoot, "essentials-manifest.json");
+    const invalidThemeManifest = JSON.parse(await readFile(invalidThemePath, "utf8"));
+    invalidThemeManifest.theme.surface = value;
+    await writeFile(invalidThemePath, `${JSON.stringify(invalidThemeManifest, null, 2)}\n`, "utf8");
+    await expectFailure(
+      () => syncEssentials({ "app-root": invalidThemeRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+      /theme\.surface|pattern mismatch|hex color|custom-property/i,
+      name
+    );
+  }
+
   const commentedStylesRoot = path.join(tempRoot, "commented-styles");
   await cp(fixtureRoot, commentedStylesRoot, { recursive: true });
   const commentedStylesPath = path.join(commentedStylesRoot, "index.html");
@@ -233,18 +296,236 @@ try {
   await writeFile(commentedStylesPath, commentedStylesEntry.replace(/(\s*<link rel="stylesheet" href="vendor\/milosapps-essentials\/v1\/milos-app-essentials\.css">)/, "\n    <!--$1 -->"), "utf8");
   await expectFailure(() => verifyEssentials(commentedStylesRoot, "essentials-manifest.json"), /link elements/, "comment-only stylesheet marker");
 
+  const dataAttributeStylesRoot = path.join(tempRoot, "data-attribute-styles");
+  await cp(fixtureRoot, dataAttributeStylesRoot, { recursive: true });
+  const dataAttributeStylesPath = path.join(dataAttributeStylesRoot, "index.html");
+  const dataAttributeStylesEntry = await readFile(dataAttributeStylesPath, "utf8");
+  await writeFile(
+    dataAttributeStylesPath,
+    dataAttributeStylesEntry
+      .replace('rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials.css"', 'data-rel="stylesheet" data-href="vendor/milosapps-essentials/v1/milos-app-essentials.css"')
+      .replace('rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials-theme.css"', 'data-rel="stylesheet" data-href="vendor/milosapps-essentials/v1/milos-app-essentials-theme.css"'),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(dataAttributeStylesRoot, "essentials-manifest.json"), /link elements/, "data-prefixed stylesheet attributes");
+
+  const dataAttributeScriptRoot = path.join(tempRoot, "data-attribute-script");
+  await cp(fixtureRoot, dataAttributeScriptRoot, { recursive: true });
+  const dataAttributeScriptPath = path.join(dataAttributeScriptRoot, "index.html");
+  const dataAttributeScriptEntry = await readFile(dataAttributeScriptPath, "utf8");
+  await writeFile(
+    dataAttributeScriptPath,
+    dataAttributeScriptEntry.replace('type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"', 'data-type="module" data-src="vendor/milosapps-essentials/v1/bootstrap.js"'),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(dataAttributeScriptRoot, "essentials-manifest.json"), /module script/, "data-prefixed module attributes");
+
+  const lateBootstrapRoot = path.join(tempRoot, "late-bootstrap");
+  await cp(fixtureRoot, lateBootstrapRoot, { recursive: true });
+  const lateBootstrapPath = path.join(lateBootstrapRoot, "index.html");
+  const lateBootstrapEntry = await readFile(lateBootstrapPath, "utf8");
+  await writeFile(
+    lateBootstrapPath,
+    lateBootstrapEntry.replace(
+      '    <script type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"></script>\n    <script type="module" src="app.js"></script>',
+      '    <script type="module" src="app.js"></script>\n    <script type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"></script>'
+    ),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(lateBootstrapRoot, "essentials-manifest.json"), /first module script/, "late bootstrap ordering");
+
+  const asyncModuleRoot = path.join(tempRoot, "async-module");
+  await cp(fixtureRoot, asyncModuleRoot, { recursive: true });
+  const asyncModulePath = path.join(asyncModuleRoot, "index.html");
+  await writeFile(asyncModulePath, (await readFile(asyncModulePath, "utf8")).replace('<script type="module" src="app.js">', '<script type="module" async src="app.js">'), "utf8");
+  await expectFailure(() => verifyEssentials(asyncModuleRoot, "essentials-manifest.json"), /async module scripts/, "async consumer module ordering");
+
+  const fakeTagsRoot = path.join(tempRoot, "fake-tags");
+  await cp(fixtureRoot, fakeTagsRoot, { recursive: true });
+  const fakeTagsPath = path.join(fakeTagsRoot, "index.html");
+  const fakeTagsEntry = await readFile(fakeTagsPath, "utf8");
+  await writeFile(
+    fakeTagsPath,
+    fakeTagsEntry.replaceAll("<link rel=", "<link-fake rel=").replaceAll("<script type=", "<script-fake type=").replaceAll("</script>", "</script-fake>"),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(fakeTagsRoot, "essentials-manifest.json"), /link elements|module script/, "custom elements cannot impersonate link or script tags");
+
+  const wrongRuntimePathRoot = path.join(tempRoot, "wrong-runtime-path");
+  await cp(fixtureRoot, wrongRuntimePathRoot, { recursive: true });
+  const wrongRuntimePathEntry = path.join(wrongRuntimePathRoot, "index.html");
+  await writeFile(wrongRuntimePathEntry, (await readFile(wrongRuntimePathEntry, "utf8")).replaceAll("vendor/milosapps-essentials/v1/", "missing/vendor/milosapps-essentials/v1/"), "utf8");
+  await expectFailure(() => verifyEssentials(wrongRuntimePathRoot, "essentials-manifest.json"), /link elements|module script/, "wrong local runtime path prefix");
+
+  const wrongRootRuntimePathRoot = path.join(tempRoot, "wrong-root-runtime-path");
+  await cp(fixtureRoot, wrongRootRuntimePathRoot, { recursive: true });
+  const wrongRootRuntimePathEntry = path.join(wrongRootRuntimePathRoot, "index.html");
+  await writeFile(wrongRootRuntimePathEntry, (await readFile(wrongRootRuntimePathEntry, "utf8")).replaceAll("vendor/milosapps-essentials/v1/", "/vendor/milosapps-essentials/v1/"), "utf8");
+  await expectFailure(() => verifyEssentials(wrongRootRuntimePathRoot, "essentials-manifest.json"), /link elements|module script/, "origin-root runtime path cannot impersonate a relative app runtime path");
+
+  for (const [name, mutate] of [
+    ["disabled-critical-css", (tag) => tag.replace(">", " disabled>")],
+    ["alternate-critical-css", (tag) => tag.replace('rel="stylesheet"', 'rel="alternate stylesheet" title="Inactive"')],
+    ["inactive-media-critical-css", (tag) => tag.replace(">", ' media="not all">')],
+    ["wrong-type-critical-css", (tag) => tag.replace(">", ' type="text/plain">')],
+    ["wrong-integrity-critical-css", (tag) => tag.replace(">", ' integrity="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=">')]
+  ]) {
+    const root = path.join(tempRoot, name);
+    await cp(fixtureRoot, root, { recursive: true });
+    const entryPath = path.join(root, "index.html");
+    const entry = await readFile(entryPath, "utf8");
+    await writeFile(entryPath, entry.replace(/<link rel="stylesheet" href="vendor\/milosapps-essentials\/v1\/milos-app-essentials(?:-theme)?\.css">/g, (tag) => mutate(tag)), "utf8");
+    await expectFailure(() => verifyEssentials(root, "essentials-manifest.json"), /stylesheets/, `${name} cannot satisfy the active critical stylesheet gate`);
+  }
+
+  const remoteBaseRoot = path.join(tempRoot, "remote-base");
+  await cp(fixtureRoot, remoteBaseRoot, { recursive: true });
+  const remoteBasePath = path.join(remoteBaseRoot, "index.html");
+  await writeFile(remoteBasePath, (await readFile(remoteBasePath, "utf8")).replace("<title>", '<base href="https://evil.invalid/app/"><title>'), "utf8");
+  await expectFailure(() => verifyEssentials(remoteBaseRoot, "essentials-manifest.json"), /base elements/, "remote base URL cannot rewrite relative runtime assets");
+
+  const remoteRuntimePathRoot = path.join(tempRoot, "remote-runtime-path");
+  await cp(fixtureRoot, remoteRuntimePathRoot, { recursive: true });
+  const remoteRuntimeManifestPath = path.join(remoteRuntimePathRoot, "essentials-manifest.json");
+  const remoteRuntimeManifest = JSON.parse(await readFile(remoteRuntimeManifestPath, "utf8"));
+  remoteRuntimeManifest.essentialsContract.runtimeBasePath = "//evil.example/vendor/milosapps-essentials/v1";
+  await writeFile(remoteRuntimeManifestPath, `${JSON.stringify(remoteRuntimeManifest, null, 2)}\n`, "utf8");
+  await expectFailure(
+    () => syncEssentials({ "app-root": remoteRuntimePathRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+    /runtimeBasePath|pattern mismatch/,
+    "protocol-relative runtime path"
+  );
+
+  const mappedRuntimeRoot = path.join(tempRoot, "mapped-runtime");
+  await cp(fixtureRoot, mappedRuntimeRoot, { recursive: true });
+  const mappedRuntimeManifestPath = path.join(mappedRuntimeRoot, "essentials-manifest.json");
+  const mappedRuntimeManifest = JSON.parse(await readFile(mappedRuntimeManifestPath, "utf8"));
+  mappedRuntimeManifest.essentialsContract.runtimeBasePath = "/noodle-assets/vendor/milosapps-essentials/v1";
+  await writeFile(mappedRuntimeManifestPath, `${JSON.stringify(mappedRuntimeManifest, null, 2)}\n`, "utf8");
+  const mappedRuntimeEntryPath = path.join(mappedRuntimeRoot, "index.html");
+  await writeFile(mappedRuntimeEntryPath, (await readFile(mappedRuntimeEntryPath, "utf8")).replaceAll("vendor/milosapps-essentials/v1/", "/noodle-assets/vendor/milosapps-essentials/v1/"), "utf8");
+  await syncEssentials({ "app-root": mappedRuntimeRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const mappedRuntime = await verifyEssentials(mappedRuntimeRoot, "essentials-manifest.json");
+  assert(mappedRuntime.appKey === "reference-app", "explicit runtimeBasePath supports physical-to-public hosting mappings");
+
+  const tsxMarkupRoot = path.join(tempRoot, "tsx-markup");
+  await cp(fixtureRoot, tsxMarkupRoot, { recursive: true });
+  const tsxManifestPath = path.join(tsxMarkupRoot, "essentials-manifest.json");
+  const tsxManifest = JSON.parse(await readFile(tsxManifestPath, "utf8"));
+  tsxManifest.integrationFiles = ["index.html", "app.js", "view.tsx"];
+  await writeFile(tsxManifestPath, `${JSON.stringify(tsxManifest, null, 2)}\n`, "utf8");
+  const tsxEntryPath = path.join(tsxMarkupRoot, "index.html");
+  const tsxEntry = (await readFile(tsxEntryPath, "utf8"))
+    .replace(/\s*<a data-milos-privacy-info[^>]*>[\s\S]*?<\/a>/i, "")
+    .replace(/\s*<milos-date-picker[^>]*><\/milos-date-picker>/i, "")
+    .replace(/\s*<milos-place-search[^>]*><\/milos-place-search>/i, "")
+    .replace(/\s*<milos-share-button[^>]*><\/milos-share-button>/i, "");
+  await writeFile(tsxEntryPath, tsxEntry, "utf8");
+  await writeFile(path.join(tsxMarkupRoot, "view.tsx"), `export const view = (<section><a href="${tsxManifest.privacy.privacyUrl}" data-milos-privacy-info>Privacy</a><milos-date-picker /><milos-place-search /><milos-share-button /></section>);\n`, "utf8");
+  await syncEssentials({ "app-root": tsxMarkupRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const tsxMarkup = await verifyEssentials(tsxMarkupRoot, "essentials-manifest.json");
+  assert(tsxMarkup.appKey === "reference-app", "TSX markup with an exact privacy href verifies");
+
+  const templateMarkupRoot = path.join(tempRoot, "template-markup");
+  await cp(fixtureRoot, templateMarkupRoot, { recursive: true });
+  const templateManifestPath = path.join(templateMarkupRoot, "essentials-manifest.json");
+  const templateManifest = JSON.parse(await readFile(templateManifestPath, "utf8"));
+  templateManifest.integrationFiles = ["index.html", "app.js", "view.ts"];
+  await writeFile(templateManifestPath, `${JSON.stringify(templateManifest, null, 2)}\n`, "utf8");
+  const templateEntryPath = path.join(templateMarkupRoot, "index.html");
+  const templateEntry = (await readFile(templateEntryPath, "utf8"))
+    .replace(/\s*<a data-milos-privacy-info[^>]*>[\s\S]*?<\/a>/i, "")
+    .replace(/\s*<milos-date-picker[^>]*><\/milos-date-picker>/i, "")
+    .replace(/\s*<milos-place-search[^>]*><\/milos-place-search>/i, "")
+    .replace(/\s*<milos-share-button[^>]*><\/milos-share-button>/i, "");
+  await writeFile(templateEntryPath, templateEntry, "utf8");
+  await writeFile(path.join(templateMarkupRoot, "view.ts"), `export const view = \`<a data-milos-privacy-info href="${templateManifest.privacy.privacyUrl}">Privacy</a><milos-date-picker></milos-date-picker><milos-place-search></milos-place-search><milos-share-button></milos-share-button>\`;\n`, "utf8");
+  await syncEssentials({ "app-root": templateMarkupRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const templateMarkup = await verifyEssentials(templateMarkupRoot, "essentials-manifest.json");
+  assert(templateMarkup.appKey === "reference-app", "raw template markup verifies without trusting interpolation expressions");
+
+  const staleManifestRoot = path.join(tempRoot, "stale-manifest");
+  await cp(fixtureRoot, staleManifestRoot, { recursive: true });
+  const staleManifestPath = path.join(staleManifestRoot, "essentials-manifest.json");
+  const staleManifest = JSON.parse(await readFile(staleManifestPath, "utf8"));
+  staleManifest.theme.accent = "#123456";
+  staleManifest.loading.message.de = "Veralteter Lock darf nicht bestehen";
+  await writeFile(staleManifestPath, `${JSON.stringify(staleManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(staleManifestRoot, "essentials-manifest.json"), /manifest configuration mismatch/, "stale generated manifest configuration");
+
   const commentedReadyRoot = path.join(tempRoot, "commented-ready");
   await cp(fixtureRoot, commentedReadyRoot, { recursive: true });
   const commentedReadyPath = path.join(commentedReadyRoot, "app.js");
   const commentedReadySource = await readFile(commentedReadyPath, "utf8");
-  await writeFile(commentedReadyPath, commentedReadySource.replace('document.dispatchEvent(new CustomEvent("milosapps:ready"));', '// document.dispatchEvent(new CustomEvent("milosapps:ready"));'), "utf8");
-  await expectFailure(() => verifyEssentials(commentedReadyRoot, "essentials-manifest.json"), /signal readiness/, "comment-only ready marker");
+  await writeFile(commentedReadyPath, commentedReadySource.replace("globalThis.milosAppEssentials.ready();", "// globalThis.milosAppEssentials.ready();"), "utf8");
+  await expectFailure(() => verifyEssentials(commentedReadyRoot, "essentials-manifest.json"), /explicitly call/, "comment-only ready marker");
+
+  const htmlCommentedReadyRoot = path.join(tempRoot, "html-commented-ready");
+  await cp(commentedReadyRoot, htmlCommentedReadyRoot, { recursive: true });
+  const htmlCommentedReadyPath = path.join(htmlCommentedReadyRoot, "index.html");
+  await writeFile(htmlCommentedReadyPath, `${await readFile(htmlCommentedReadyPath, "utf8")}\n<!-- globalThis.milosAppEssentials.ready() -->\n`, "utf8");
+  await expectFailure(() => verifyEssentials(htmlCommentedReadyRoot, "essentials-manifest.json"), /explicitly call/, "HTML comments cannot impersonate readiness code");
+
+  const jsxTextReadyRoot = path.join(tempRoot, "jsx-text-ready");
+  await cp(fixtureRoot, jsxTextReadyRoot, { recursive: true });
+  const jsxTextReadyManifestPath = path.join(jsxTextReadyRoot, "essentials-manifest.json");
+  const jsxTextReadyManifest = JSON.parse(await readFile(jsxTextReadyManifestPath, "utf8"));
+  jsxTextReadyManifest.integrationFiles.push("fake-view.tsx");
+  await writeFile(jsxTextReadyManifestPath, `${JSON.stringify(jsxTextReadyManifest, null, 2)}\n`, "utf8");
+  await writeFile(path.join(jsxTextReadyRoot, "fake-view.tsx"), "export const view = <p>safe text</p>;\n", "utf8");
+  await syncEssentials({ "app-root": jsxTextReadyRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const jsxTextReadyAppPath = path.join(jsxTextReadyRoot, "app.js");
+  await writeFile(jsxTextReadyAppPath, (await readFile(jsxTextReadyAppPath, "utf8")).replace("globalThis.milosAppEssentials.ready();", "// readiness intentionally removed"), "utf8");
+  await writeFile(path.join(jsxTextReadyRoot, "fake-view.tsx"), "export const view = <p>globalThis.milosAppEssentials.ready()</p>;\n", "utf8");
+  await expectFailure(() => verifyEssentials(jsxTextReadyRoot, "essentials-manifest.json"), /explicitly call/, "JSX text cannot impersonate executable readiness code");
+
+  const templateReadyRoot = path.join(tempRoot, "template-ready");
+  await cp(commentedReadyRoot, templateReadyRoot, { recursive: true });
+  const templateReadyPath = path.join(templateReadyRoot, "app.js");
+  await writeFile(templateReadyPath, `${await readFile(templateReadyPath, "utf8")}\n\`${'${/* globalThis.milosAppEssentials.ready(); */ 0}'}\`;\n`, "utf8");
+  await expectFailure(() => verifyEssentials(templateReadyRoot, "essentials-manifest.json"), /explicitly call/, "template-comment ready marker");
+
+  const regexReadyRoot = path.join(tempRoot, "regex-ready");
+  await cp(commentedReadyRoot, regexReadyRoot, { recursive: true });
+  const regexReadyPath = path.join(regexReadyRoot, "app.js");
+  await writeFile(regexReadyPath, `${await readFile(regexReadyPath, "utf8")}\nconst fakeReady = /globalThis\\.milosAppEssentials\\.ready\\(\\)/;\n`, "utf8");
+  await expectFailure(() => verifyEssentials(regexReadyRoot, "essentials-manifest.json"), /explicitly call/, "regex-literal ready marker");
+
+  const controlRegexReadyRoot = path.join(tempRoot, "control-regex-ready");
+  await cp(commentedReadyRoot, controlRegexReadyRoot, { recursive: true });
+  const controlRegexReadyPath = path.join(controlRegexReadyRoot, "app.js");
+  await writeFile(controlRegexReadyPath, `${await readFile(controlRegexReadyPath, "utf8")}\nif (true) /globalThis\\.milosAppEssentials\\.ready\\(\\)/.test("");\n`, "utf8");
+  await expectFailure(() => verifyEssentials(controlRegexReadyRoot, "essentials-manifest.json"), /explicitly call/, "regex after a control header cannot impersonate readiness");
+
+  const blockRegexReadyRoot = path.join(tempRoot, "block-regex-ready");
+  await cp(commentedReadyRoot, blockRegexReadyRoot, { recursive: true });
+  const blockRegexReadyPath = path.join(blockRegexReadyRoot, "app.js");
+  await writeFile(blockRegexReadyPath, `${await readFile(blockRegexReadyPath, "utf8")}\nif (true) {} /globalThis\\.milosAppEssentials\\.ready\\(\\)/.test("");\n`, "utf8");
+  await expectFailure(() => verifyEssentials(blockRegexReadyRoot, "essentials-manifest.json"), /explicitly call/, "regex after a statement block cannot impersonate readiness");
+
+  const restrictedRegexReadyRoot = path.join(tempRoot, "restricted-regex-ready");
+  await cp(commentedReadyRoot, restrictedRegexReadyRoot, { recursive: true });
+  const restrictedRegexReadyPath = path.join(restrictedRegexReadyRoot, "app.js");
+  await writeFile(restrictedRegexReadyPath, `${await readFile(restrictedRegexReadyPath, "utf8")}\ndebugger\n/globalThis\\.milosAppEssentials\\.ready\\(\\)/.test("");\n`, "utf8");
+  await expectFailure(() => verifyEssentials(restrictedRegexReadyRoot, "essentials-manifest.json"), /explicitly call/, "regex after a restricted statement cannot impersonate readiness");
+
+  const exportRegexReadyRoot = path.join(tempRoot, "export-regex-ready");
+  await cp(commentedReadyRoot, exportRegexReadyRoot, { recursive: true });
+  const exportRegexReadyPath = path.join(exportRegexReadyRoot, "app.js");
+  await writeFile(exportRegexReadyPath, `${await readFile(exportRegexReadyPath, "utf8")}\nexport default /globalThis\\.milosAppEssentials\\.ready\\(\\)/;\n`, "utf8");
+  await expectFailure(() => verifyEssentials(exportRegexReadyRoot, "essentials-manifest.json"), /explicitly call/, "export-default regex cannot impersonate readiness");
+
+  const shadowReadyRoot = path.join(tempRoot, "shadow-ready");
+  await cp(commentedReadyRoot, shadowReadyRoot, { recursive: true });
+  const shadowReadyPath = path.join(shadowReadyRoot, "app.js");
+  await writeFile(shadowReadyPath, `${await readFile(shadowReadyPath, "utf8")}\nconst milosAppEssentials = { ready() {} };\nmilosAppEssentials.ready();\n`, "utf8");
+  await expectFailure(() => verifyEssentials(shadowReadyRoot, "essentials-manifest.json"), /globalThis\.milosAppEssentials\.ready/, "shadow readiness object");
 
   const wrongProvenanceRoot = path.join(tempRoot, "wrong-provenance");
   await cp(fixtureRoot, wrongProvenanceRoot, { recursive: true });
   const wrongProvenancePath = path.join(wrongProvenanceRoot, "essentials-manifest.json");
   const wrongProvenanceManifest = JSON.parse(await readFile(wrongProvenancePath, "utf8"));
-  const wrongCommit = execFileSync("git", ["-C", path.resolve(root, "../../.."), "rev-parse", "HEAD^"], { encoding: "utf8" }).trim();
+  const wrongCommit = execFileSync("git", ["-C", path.resolve(root, "../../.."), "rev-parse", "public-app-essentials-v1.1.0^{commit}"], { encoding: "utf8" }).trim();
   wrongProvenanceManifest.appKey = "cloud-post";
   wrongProvenanceManifest.ownerTask = "MilosApps – Wolkenpost";
   wrongProvenanceManifest.privacy.storagePurposes[0].key = "milosapps.cloud-post.locale";
@@ -254,6 +535,22 @@ try {
     () => syncEssentials({ "app-root": wrongProvenanceRoot, manifest: "essentials-manifest.json", "source-commit": wrongCommit }),
     /does not match --source-commit/,
     "wrong Shared source provenance"
+  );
+
+  const treeProvenanceRoot = path.join(tempRoot, "tree-provenance");
+  await cp(fixtureRoot, treeProvenanceRoot, { recursive: true });
+  const treeProvenancePath = path.join(treeProvenanceRoot, "essentials-manifest.json");
+  const treeProvenanceManifest = JSON.parse(await readFile(treeProvenancePath, "utf8"));
+  const treeObject = execFileSync("git", ["-C", path.resolve(root, "../../.."), "rev-parse", "HEAD^{tree}"], { encoding: "utf8" }).trim();
+  treeProvenanceManifest.appKey = "cloud-post";
+  treeProvenanceManifest.ownerTask = "MilosApps – Wolkenpost";
+  treeProvenanceManifest.privacy.storagePurposes[0].key = "milosapps.cloud-post.locale";
+  treeProvenanceManifest.essentialsContract.sharedCommit = treeObject;
+  await writeFile(treeProvenancePath, `${JSON.stringify(treeProvenanceManifest, null, 2)}\n`, "utf8");
+  await expectFailure(
+    () => syncEssentials({ "app-root": treeProvenanceRoot, manifest: "essentials-manifest.json", "source-commit": treeObject }),
+    /Git commit object/,
+    "tree object cannot impersonate a Shared commit"
   );
 
   if (process.env.CI) {
@@ -311,6 +608,20 @@ try {
   await writeFile(invalidPrivacyManifestPath, `${JSON.stringify(invalidPrivacyManifest, null, 2)}\n`, "utf8");
   await expectFailure(() => verifyEssentials(invalidPrivacyModeRoot, "essentials-manifest.json"), /privacy\.mode/, "unknown privacy mode");
 
+  for (const [name, value] of [["empty-https-privacy-url", "https://"], ["invalid-host-privacy-url", "https:// not-a-host"], ["dot-host-privacy-url", "https://."], ["credentialed-privacy-url", "https://user:pass@example.test/privacy"]]) {
+    const invalidPrivacyRoot = path.join(tempRoot, name);
+    await cp(fixtureRoot, invalidPrivacyRoot, { recursive: true });
+    const invalidPrivacyPath = path.join(invalidPrivacyRoot, "essentials-manifest.json");
+    const invalidPrivacy = JSON.parse(await readFile(invalidPrivacyPath, "utf8"));
+    invalidPrivacy.privacy.privacyUrl = value;
+    await writeFile(invalidPrivacyPath, `${JSON.stringify(invalidPrivacy, null, 2)}\n`, "utf8");
+    await expectFailure(
+      () => syncEssentials({ "app-root": invalidPrivacyRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+      /privacyUrl|pattern mismatch|valid host|credentials/i,
+      name
+    );
+  }
+
   const fakeNoCookieBannerRoot = path.join(tempRoot, "fake-no-cookie-banner");
   await cp(fixtureRoot, fakeNoCookieBannerRoot, { recursive: true });
   const fakeNoCookieManifestPath = path.join(fakeNoCookieBannerRoot, "essentials-manifest.json");
@@ -329,6 +640,12 @@ try {
   const missingPrivacyEntry = await readFile(missingPrivacyEntryPath, "utf8");
   await writeFile(missingPrivacyEntryPath, missingPrivacyEntry.replace("data-milos-privacy-info", "data-app-privacy-info"), "utf8");
   await expectFailure(() => verifyEssentials(missingPrivacyInfoRoot, "essentials-manifest.json"), /persistent consumer-owned privacy information/, "missing persistent privacy info");
+
+  const wrongPrivacyLinkRoot = path.join(tempRoot, "wrong-privacy-link");
+  await cp(fixtureRoot, wrongPrivacyLinkRoot, { recursive: true });
+  const wrongPrivacyLinkPath = path.join(wrongPrivacyLinkRoot, "index.html");
+  await writeFile(wrongPrivacyLinkPath, (await readFile(wrongPrivacyLinkPath, "utf8")).replace(fixtureManifest.privacy.privacyUrl, "javascript:alert(1)"), "utf8");
+  await expectFailure(() => verifyEssentials(wrongPrivacyLinkRoot, "essentials-manifest.json"), /exact manifest privacyUrl/, "privacy information link cannot diverge from the manifest URL");
 
   const suggestionsRoot = path.join(tempRoot, "suggestions");
   await cp(fixtureRoot, suggestionsRoot, { recursive: true });
@@ -359,7 +676,11 @@ try {
   const missingEvidenceManifest = JSON.parse(await readFile(missingEvidenceManifestPath, "utf8"));
   missingEvidenceManifest.features.placeSuggestions.evidenceFile = "missing-suggestions-provider.md";
   await writeFile(missingEvidenceManifestPath, `${JSON.stringify(missingEvidenceManifest, null, 2)}\n`, "utf8");
-  await expectFailure(() => verifyEssentials(missingSuggestionsEvidenceRoot, "essentials-manifest.json"), /suggestions evidence is missing/, "missing suggestions evidence");
+  await expectFailure(
+    () => syncEssentials({ "app-root": missingSuggestionsEvidenceRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+    /suggestions evidence is missing/,
+    "missing suggestions evidence"
+  );
 
   const noLoaderRoot = path.join(tempRoot, "no-loader");
   await cp(fixtureRoot, noLoaderRoot, { recursive: true });
@@ -368,12 +689,253 @@ try {
   await writeFile(entryPath, entry.replace("data-milos-loading-card", "data-app-loading-card"), "utf8");
   await expectFailure(() => verifyEssentials(noLoaderRoot, "essentials-manifest.json"), /startup marker/, "missing loader marker");
 
+  const missingLoadingIconRoot = path.join(tempRoot, "missing-loading-icon");
+  await cp(fixtureRoot, missingLoadingIconRoot, { recursive: true });
+  await rm(path.join(missingLoadingIconRoot, "icon.svg"));
+  await expectFailure(() => verifyEssentials(missingLoadingIconRoot, "essentials-manifest.json"), /loading icon is missing/, "missing app-owned loading icon");
+
+  const quotedLoaderMarkerRoot = path.join(tempRoot, "quoted-loader-marker");
+  await cp(noLoaderRoot, quotedLoaderMarkerRoot, { recursive: true });
+  const quotedLoaderMarkerPath = path.join(quotedLoaderMarkerRoot, "index.html");
+  await writeFile(quotedLoaderMarkerPath, (await readFile(quotedLoaderMarkerPath, "utf8")).replace("<main>", `<main title=" data-milos-loading-card ">`), "utf8");
+  await expectFailure(() => verifyEssentials(quotedLoaderMarkerRoot, "essentials-manifest.json"), /startup marker/, "quoted attribute text cannot impersonate a loader marker");
+
   const noShareRoot = path.join(tempRoot, "no-share");
   await cp(fixtureRoot, noShareRoot, { recursive: true });
   const noShareEntryPath = path.join(noShareRoot, "index.html");
   const noShareEntry = await readFile(noShareEntryPath, "utf8");
   await writeFile(noShareEntryPath, noShareEntry.replace("milos-share-button", "app-share-button"), "utf8");
   await expectFailure(() => verifyEssentials(noShareRoot, "essentials-manifest.json"), /share control/, "missing share control");
+
+  const commentOnlyShareRoot = path.join(tempRoot, "comment-only-share");
+  await cp(noShareRoot, commentOnlyShareRoot, { recursive: true });
+  const commentOnlySharePath = path.join(commentOnlyShareRoot, "app.js");
+  await writeFile(commentOnlySharePath, `${await readFile(commentOnlySharePath, "utf8")}\nconst fakeMarkup = \`\${/* <milos-share-button></milos-share-button> */ 0}\`;\n`, "utf8");
+  await expectFailure(() => verifyEssentials(commentOnlyShareRoot, "essentials-manifest.json"), /share control/, "template-interpolation comment cannot impersonate share markup");
+
+  const htmlCommentShareRoot = path.join(tempRoot, "html-comment-share");
+  await cp(noShareRoot, htmlCommentShareRoot, { recursive: true });
+  const htmlCommentSharePath = path.join(htmlCommentShareRoot, "app.js");
+  await writeFile(htmlCommentSharePath, `${await readFile(htmlCommentSharePath, "utf8")}\nconst fakeMarkup = \`<!-- <milos-share-button></milos-share-button> -->\`;\n`, "utf8");
+  await expectFailure(() => verifyEssentials(htmlCommentShareRoot, "essentials-manifest.json"), /share control/, "template HTML comment cannot impersonate share markup");
+
+  const controlRegexShareRoot = path.join(tempRoot, "control-regex-share");
+  await cp(noShareRoot, controlRegexShareRoot, { recursive: true });
+  const controlRegexSharePath = path.join(controlRegexShareRoot, "app.js");
+  await writeFile(controlRegexSharePath, `${await readFile(controlRegexSharePath, "utf8")}\nif (true) /<milos-share-button><\\/milos-share-button>/.test("");\n`, "utf8");
+  await expectFailure(() => verifyEssentials(controlRegexShareRoot, "essentials-manifest.json"), /share control/, "regex after a control header cannot impersonate share markup");
+
+  const blockRegexShareRoot = path.join(tempRoot, "block-regex-share");
+  await cp(noShareRoot, blockRegexShareRoot, { recursive: true });
+  const blockRegexSharePath = path.join(blockRegexShareRoot, "app.js");
+  await writeFile(blockRegexSharePath, `${await readFile(blockRegexSharePath, "utf8")}\nif (true) {} /<milos-share-button><\\/milos-share-button>/.test("");\n`, "utf8");
+  await expectFailure(() => verifyEssentials(blockRegexShareRoot, "essentials-manifest.json"), /share control/, "regex after a statement block cannot impersonate share markup");
+
+  for (const keyword of ["break", "continue", "debugger"]) {
+    const root = path.join(tempRoot, `${keyword}-regex-share`);
+    await cp(noShareRoot, root, { recursive: true });
+    const appPath = path.join(root, "app.js");
+    const fake = keyword === "debugger"
+      ? `debugger\n/<milos-share-button><\\/milos-share-button>/.test("");`
+      : `while (true) { ${keyword}\n/<milos-share-button><\\/milos-share-button>/.test(""); }`;
+    await writeFile(appPath, `${await readFile(appPath, "utf8")}\n${fake}\n`, "utf8");
+    await expectFailure(() => verifyEssentials(root, "essentials-manifest.json"), /share control/, `regex after ${keyword} cannot impersonate share markup`);
+  }
+
+  const exportRegexShareRoot = path.join(tempRoot, "export-regex-share");
+  await cp(noShareRoot, exportRegexShareRoot, { recursive: true });
+  const exportRegexSharePath = path.join(exportRegexShareRoot, "app.js");
+  await writeFile(exportRegexSharePath, `${await readFile(exportRegexSharePath, "utf8")}\nexport default /<milos-share-button><\\/milos-share-button>/;\n`, "utf8");
+  await expectFailure(() => verifyEssentials(exportRegexShareRoot, "essentials-manifest.json"), /share control/, "export-default regex cannot impersonate share markup");
+
+  const hashbangShareRoot = path.join(tempRoot, "hashbang-share");
+  await cp(noShareRoot, hashbangShareRoot, { recursive: true });
+  const hashbangSharePath = path.join(hashbangShareRoot, "app.js");
+  await writeFile(hashbangSharePath, `\ufeff#! <milos-share-button></milos-share-button>\n${await readFile(hashbangSharePath, "utf8")}`, "utf8");
+  await expectFailure(() => verifyEssentials(hashbangShareRoot, "essentials-manifest.json"), /share control/, "BOM plus hashbang cannot impersonate share markup");
+
+  for (const [name, fakeMarkup] of [
+    ["html-bang-comment-share", "<!-- <milos-share-button></milos-share-button> --!>"],
+    ["html-unclosed-comment-share", "<!-- <milos-share-button></milos-share-button>"],
+    ["html-cdata-share", "<![CDATA[ <milos-share-button></milos-share-button> ]]>"],
+    ["html-processing-share", "<?fake <milos-share-button></milos-share-button> ?>"]
+  ]) {
+    const root = path.join(tempRoot, name);
+    await cp(noShareRoot, root, { recursive: true });
+    const appPath = path.join(root, "app.js");
+    await writeFile(appPath, `${await readFile(appPath, "utf8")}\nconst fakeMarkup = \`${fakeMarkup}\`;\n`, "utf8");
+    await expectFailure(() => verifyEssentials(root, "essentials-manifest.json"), /share control/, `${name} cannot impersonate share markup`);
+  }
+
+  const rawTextShareRoot = path.join(tempRoot, "raw-text-share");
+  await cp(noShareRoot, rawTextShareRoot, { recursive: true });
+  const rawTextSharePath = path.join(rawTextShareRoot, "index.html");
+  await writeFile(
+    rawTextSharePath,
+    (await readFile(rawTextSharePath, "utf8")).replace("</head>", `<script>const fake = '<milos-share-button></milos-share-button>';</script>\n<style>.fake::after { content: '<milos-share-button></milos-share-button>'; }</style>\n</head>`),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(rawTextShareRoot, "essentials-manifest.json"), /share control/, "raw-text elements cannot impersonate share markup");
+
+  const selfClosingRawTextShareRoot = path.join(tempRoot, "self-closing-raw-text-share");
+  await cp(noShareRoot, selfClosingRawTextShareRoot, { recursive: true });
+  const selfClosingRawTextSharePath = path.join(selfClosingRawTextShareRoot, "index.html");
+  await writeFile(
+    selfClosingRawTextSharePath,
+    (await readFile(selfClosingRawTextSharePath, "utf8")).replace("</head>", `<script/> <milos-share-button></milos-share-button> </script>\n</head>`),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(selfClosingRawTextShareRoot, "essentials-manifest.json"), /share control/, "HTML raw-text elements ignore a self-closing slash and cannot expose fake markup");
+
+  const inertTemplateShareRoot = path.join(tempRoot, "inert-template-share");
+  await cp(noShareRoot, inertTemplateShareRoot, { recursive: true });
+  const inertTemplateSharePath = path.join(inertTemplateShareRoot, "index.html");
+  await writeFile(
+    inertTemplateSharePath,
+    (await readFile(inertTemplateSharePath, "utf8")).replace("</head>", `<template><milos-share-button></milos-share-button></template>\n</head>`),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(inertTemplateShareRoot, "essentials-manifest.json"), /template|share control/, "inert template content cannot impersonate a connected share control");
+
+  const attributeShareRoot = path.join(tempRoot, "attribute-share");
+  await cp(noShareRoot, attributeShareRoot, { recursive: true });
+  const attributeSharePath = path.join(attributeShareRoot, "index.html");
+  await writeFile(
+    attributeSharePath,
+    (await readFile(attributeSharePath, "utf8")).replace("<main>", `<main data-fake="<milos-share-button></milos-share-button>">`),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(attributeShareRoot, "essentials-manifest.json"), /share control/, "attribute values cannot impersonate share markup");
+
+  const comparisonShareRoot = path.join(tempRoot, "comparison-share");
+  await cp(noShareRoot, comparisonShareRoot, { recursive: true });
+  const comparisonSharePath = path.join(comparisonShareRoot, "app.js");
+  await writeFile(comparisonSharePath, `${await readFile(comparisonSharePath, "utf8")}\nlet a=0,milos=1,share=1,button=1,z=0; a<milos-share-button>z;\n`, "utf8");
+  await expectFailure(() => verifyEssentials(comparisonShareRoot, "essentials-manifest.json"), /share control/, "plain JavaScript comparisons cannot impersonate JSX markup");
+
+  const bogusEndTagShareRoot = path.join(tempRoot, "bogus-end-tag-share");
+  await cp(noShareRoot, bogusEndTagShareRoot, { recursive: true });
+  const bogusEndTagSharePath = path.join(bogusEndTagShareRoot, "index.html");
+  await writeFile(bogusEndTagSharePath, (await readFile(bogusEndTagSharePath, "utf8")).replace("</main>", `</! <milos-share-button></milos-share-button>>\n</main>`), "utf8");
+  await expectFailure(() => verifyEssentials(bogusEndTagShareRoot, "essentials-manifest.json"), /share control/, "bogus end-tag comments cannot impersonate share markup");
+
+  const quotedAttributeShareRoot = path.join(tempRoot, "quoted-attribute-share");
+  await cp(noShareRoot, quotedAttributeShareRoot, { recursive: true });
+  const quotedAttributeSharePath = path.join(quotedAttributeShareRoot, "index.html");
+  await writeFile(quotedAttributeSharePath, (await readFile(quotedAttributeSharePath, "utf8")).replace("<main>", `<main title=' data-milos-privacy-info <milos-share-button></milos-share-button> '>`), "utf8");
+  await expectFailure(() => verifyEssentials(quotedAttributeShareRoot, "essentials-manifest.json"), /share control/, "quoted attribute text cannot impersonate integration markup or markers");
+
+  const nbspShareRoot = path.join(tempRoot, "nbsp-share");
+  await cp(noShareRoot, nbspShareRoot, { recursive: true });
+  const nbspSharePath = path.join(nbspShareRoot, "index.html");
+  await writeFile(nbspSharePath, (await readFile(nbspSharePath, "utf8")).replace("</main>", `<milos-share-button\u00a0 ></milos-share-button\u00a0>\n</main>`), "utf8");
+  await expectFailure(() => verifyEssentials(nbspShareRoot, "essentials-manifest.json"), /share control/, "non-ASCII whitespace cannot terminate an HTML tag name");
+
+  const rawTextRuntimeRoot = path.join(tempRoot, "raw-text-runtime");
+  await cp(fixtureRoot, rawTextRuntimeRoot, { recursive: true });
+  const rawTextRuntimePath = path.join(rawTextRuntimeRoot, "index.html");
+  const rawTextRuntimeEntry = (await readFile(rawTextRuntimePath, "utf8"))
+    .replace(/^\s*<link[^>]+milos-app-essentials\.css[^>]*>\s*$/m, "")
+    .replace(/^\s*<link[^>]+milos-app-essentials-theme\.css[^>]*>\s*$/m, "")
+    .replace(/^\s*<script[^>]+bootstrap\.js[^>]*><\/script>\s*$/m, "")
+    .replace("</head>", `<script>const fakeRuntime = '<link rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials.css"><link rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials-theme.css"><script type="module" src="vendor/milosapps-essentials/v1/bootstrap.js">';</script>\n</head>`);
+  await writeFile(rawTextRuntimePath, rawTextRuntimeEntry, "utf8");
+  await expectFailure(() => verifyEssentials(rawTextRuntimeRoot, "essentials-manifest.json"), /stylesheets|bootstrap/, "raw-text strings cannot impersonate runtime assets");
+
+  for (const foreignName of ["svg", "math"]) {
+    const root = path.join(tempRoot, `${foreignName}-runtime`);
+    await cp(rawTextRuntimeRoot, root, { recursive: true });
+    const entryPath = path.join(root, "index.html");
+    const fakeRuntime = `<${foreignName}><link rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials.css"><link rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials-theme.css"><script type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"></script></${foreignName}>`;
+    await writeFile(entryPath, (await readFile(entryPath, "utf8")).replace("</head>", `${fakeRuntime}\n</head>`), "utf8");
+    await expectFailure(() => verifyEssentials(root, "essentials-manifest.json"), /stylesheets|bootstrap/, `${foreignName} foreign content cannot impersonate HTML runtime tags`);
+  }
+
+  const quotedAttributeRuntimeRoot = path.join(tempRoot, "quoted-attribute-runtime");
+  await cp(rawTextRuntimeRoot, quotedAttributeRuntimeRoot, { recursive: true });
+  const quotedAttributeRuntimePath = path.join(quotedAttributeRuntimeRoot, "index.html");
+  const quotedFakeRuntime = `<link title=' rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials.css" '><link title=' rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials-theme.css" '><script data-x=' type="module" src="vendor/milosapps-essentials/v1/bootstrap.js" '></script>`;
+  await writeFile(quotedAttributeRuntimePath, (await readFile(quotedAttributeRuntimePath, "utf8")).replace("</head>", `${quotedFakeRuntime}\n</head>`), "utf8");
+  await expectFailure(() => verifyEssentials(quotedAttributeRuntimeRoot, "essentials-manifest.json"), /stylesheets|bootstrap/, "quoted attribute values cannot impersonate runtime attributes");
+
+  const escapedScriptRuntimeRoot = path.join(tempRoot, "escaped-script-runtime");
+  await cp(rawTextRuntimeRoot, escapedScriptRuntimeRoot, { recursive: true });
+  const escapedScriptRuntimePath = path.join(escapedScriptRuntimeRoot, "index.html");
+  const escapedFakeRuntime = `<script><!--<script></script>\n<link rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials.css">\n<link rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials-theme.css">\n<script type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"></script>\n</script>`;
+  await writeFile(escapedScriptRuntimePath, (await readFile(escapedScriptRuntimePath, "utf8")).replace("</head>", `${escapedFakeRuntime}\n</head>`), "utf8");
+  await expectFailure(() => verifyEssentials(escapedScriptRuntimeRoot, "essentials-manifest.json"), /escaped or unterminated inline script data/, "escaped script-data states cannot expose fake runtime tags");
+
+  const selfClosingBootstrapRoot = path.join(tempRoot, "self-closing-bootstrap");
+  await cp(fixtureRoot, selfClosingBootstrapRoot, { recursive: true });
+  const selfClosingBootstrapPath = path.join(selfClosingBootstrapRoot, "index.html");
+  await writeFile(selfClosingBootstrapPath, (await readFile(selfClosingBootstrapPath, "utf8")).replace(/<script type="module" src="([^"]*bootstrap\.js)"><\/script>/, '<script type="module" src="$1"/>'), "utf8");
+  await expectFailure(() => verifyEssentials(selfClosingBootstrapRoot, "essentials-manifest.json"), /escaped or unterminated|closing tags|consumer entry module/, "self-closing HTML bootstrap cannot swallow the consumer module");
+
+  const selfClosingConsumerRoot = path.join(tempRoot, "self-closing-consumer");
+  await cp(fixtureRoot, selfClosingConsumerRoot, { recursive: true });
+  const selfClosingConsumerPath = path.join(selfClosingConsumerRoot, "index.html");
+  await writeFile(selfClosingConsumerPath, (await readFile(selfClosingConsumerPath, "utf8")).replace('<script type="module" src="app.js"></script>', '<script type="module" src="app.js"/>'), "utf8");
+  await expectFailure(() => verifyEssentials(selfClosingConsumerRoot, "essentials-manifest.json"), /escaped or unterminated|closing tags/, "self-closing consumer module cannot satisfy startup wiring");
+
+  const wrongConsumerModuleRoot = path.join(tempRoot, "wrong-consumer-module");
+  await cp(fixtureRoot, wrongConsumerModuleRoot, { recursive: true });
+  await writeFile(path.join(wrongConsumerModuleRoot, "not-integrated.js"), "export {};\n", "utf8");
+  const wrongConsumerModulePath = path.join(wrongConsumerModuleRoot, "index.html");
+  await writeFile(wrongConsumerModulePath, (await readFile(wrongConsumerModulePath, "utf8")).replace('src="app.js"', 'src="not-integrated.js"'), "utf8");
+  await expectFailure(() => verifyEssentials(wrongConsumerModuleRoot, "essentials-manifest.json"), /declared consumer entry module/, "an unlisted module cannot stand in for the consumer entry source");
+
+  const wrongIntegrityRuntimeRoot = path.join(tempRoot, "wrong-integrity-runtime");
+  await cp(fixtureRoot, wrongIntegrityRuntimeRoot, { recursive: true });
+  const wrongIntegrityRuntimePath = path.join(wrongIntegrityRuntimeRoot, "index.html");
+  await writeFile(wrongIntegrityRuntimePath, (await readFile(wrongIntegrityRuntimePath, "utf8")).replace(/(<script type="module" src="[^"]+">)/g, (tag) => tag.replace(">", ' integrity="sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=">')), "utf8");
+  await expectFailure(() => verifyEssentials(wrongIntegrityRuntimeRoot, "essentials-manifest.json"), /integrity metadata/, "wrong local integrity metadata cannot block runtime modules");
+
+  const nbspRuntimeRoot = path.join(tempRoot, "nbsp-runtime");
+  await cp(rawTextRuntimeRoot, nbspRuntimeRoot, { recursive: true });
+  const nbspRuntimePath = path.join(nbspRuntimeRoot, "index.html");
+  await writeFile(
+    nbspRuntimePath,
+    (await readFile(nbspRuntimePath, "utf8")).replace("</head>", `<link\u00a0 rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials.css"><link\u00a0 rel="stylesheet" href="vendor/milosapps-essentials/v1/milos-app-essentials-theme.css"><script\u00a0 type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"></script\u00a0>\n</head>`),
+    "utf8"
+  );
+  await expectFailure(() => verifyEssentials(nbspRuntimeRoot, "essentials-manifest.json"), /stylesheets|bootstrap/, "non-ASCII whitespace cannot impersonate runtime tags");
+
+  const unwiredShareRoot = path.join(tempRoot, "unwired-share");
+  await cp(fixtureRoot, unwiredShareRoot, { recursive: true });
+  const unwiredSharePath = path.join(unwiredShareRoot, "app.js");
+  await writeFile(unwiredSharePath, (await readFile(unwiredSharePath, "utf8")).replace("setPayloadProvider", "setAppPayloadProvider"), "utf8");
+  await expectFailure(() => verifyEssentials(unwiredShareRoot, "essentials-manifest.json"), /payload provider/, "unwired share payload");
+
+  const jsxTextShareProviderRoot = path.join(tempRoot, "jsx-text-share-provider");
+  await cp(fixtureRoot, jsxTextShareProviderRoot, { recursive: true });
+  const jsxTextShareManifestPath = path.join(jsxTextShareProviderRoot, "essentials-manifest.json");
+  const jsxTextShareManifest = JSON.parse(await readFile(jsxTextShareManifestPath, "utf8"));
+  jsxTextShareManifest.integrationFiles.push("fake-view.tsx");
+  await writeFile(jsxTextShareManifestPath, `${JSON.stringify(jsxTextShareManifest, null, 2)}\n`, "utf8");
+  await writeFile(path.join(jsxTextShareProviderRoot, "fake-view.tsx"), "export const view = <p>safe text</p>;\n", "utf8");
+  await syncEssentials({ "app-root": jsxTextShareProviderRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const jsxTextShareAppPath = path.join(jsxTextShareProviderRoot, "app.js");
+  await writeFile(jsxTextShareAppPath, (await readFile(jsxTextShareAppPath, "utf8")).replace("setPayloadProvider", "setAppPayloadProvider"), "utf8");
+  await writeFile(path.join(jsxTextShareProviderRoot, "fake-view.tsx"), "export const view = <p>.setPayloadProvider()</p>;\n", "utf8");
+  await expectFailure(() => verifyEssentials(jsxTextShareProviderRoot, "essentials-manifest.json"), /payload provider/, "JSX text cannot impersonate executable provider wiring");
+
+  const htmlCommentedShareProviderRoot = path.join(tempRoot, "html-commented-share-provider");
+  await cp(unwiredShareRoot, htmlCommentedShareProviderRoot, { recursive: true });
+  const htmlCommentedShareProviderPath = path.join(htmlCommentedShareProviderRoot, "index.html");
+  await writeFile(htmlCommentedShareProviderPath, `${await readFile(htmlCommentedShareProviderPath, "utf8")}\n<!-- fake.setPayloadProvider() -->\n`, "utf8");
+  await expectFailure(() => verifyEssentials(htmlCommentedShareProviderRoot, "essentials-manifest.json"), /payload provider/, "HTML comments cannot impersonate a share provider");
+
+  const unwiredPlaceRoot = path.join(tempRoot, "unwired-place");
+  await cp(fixtureRoot, unwiredPlaceRoot, { recursive: true });
+  const unwiredPlacePath = path.join(unwiredPlaceRoot, "app.js");
+  await writeFile(unwiredPlacePath, (await readFile(unwiredPlacePath, "utf8")).replace("setSearchProvider", "setAppSearchProvider"), "utf8");
+  await expectFailure(() => verifyEssentials(unwiredPlaceRoot, "essentials-manifest.json"), /search provider/, "unwired place search provider");
+
+  const htmlCommentedPlaceProviderRoot = path.join(tempRoot, "html-commented-place-provider");
+  await cp(unwiredPlaceRoot, htmlCommentedPlaceProviderRoot, { recursive: true });
+  const htmlCommentedPlaceProviderPath = path.join(htmlCommentedPlaceProviderRoot, "index.html");
+  await writeFile(htmlCommentedPlaceProviderPath, `${await readFile(htmlCommentedPlaceProviderPath, "utf8")}\n<!-- fake.setSearchProvider() -->\n`, "utf8");
+  await expectFailure(() => verifyEssentials(htmlCommentedPlaceProviderRoot, "essentials-manifest.json"), /search provider/, "HTML comments cannot impersonate a place provider");
 
   const escapeRoot = path.join(tempRoot, "escape");
   await cp(fixtureRoot, escapeRoot, { recursive: true });
@@ -386,6 +948,33 @@ try {
     /vendorDirectory|inside app root/,
     "path escape"
   );
+
+  const junctionRoot = path.join(tempRoot, "junction-escape");
+  await cp(fixtureRoot, junctionRoot, { recursive: true });
+  const junctionVendor = path.join(junctionRoot, "vendor", "milosapps-essentials", "v1");
+  const junctionOutside = path.join(tempRoot, "outside-vendor");
+  await rm(junctionVendor, { recursive: true, force: true });
+  await mkdir(junctionOutside, { recursive: true });
+  await symlink(junctionOutside, junctionVendor, process.platform === "win32" ? "junction" : "dir");
+  await expectFailure(
+    () => syncEssentials({ "app-root": junctionRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+    /symbolic links|junctions|outside app root/,
+    "vendor junction escape"
+  );
+
+  const hardlinkRoot = path.join(tempRoot, "hardlink-escape");
+  await cp(fixtureRoot, hardlinkRoot, { recursive: true });
+  const hardlinkOutside = path.join(tempRoot, "outside-hardlink.css");
+  const hardlinkDestination = path.join(hardlinkRoot, "vendor", "milosapps-essentials", "v1", "milos-app-essentials.css");
+  await writeFile(hardlinkOutside, "external must remain unchanged", "utf8");
+  await rm(hardlinkDestination, { force: true });
+  await link(hardlinkOutside, hardlinkDestination);
+  await expectFailure(
+    () => syncEssentials({ "app-root": hardlinkRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+    /hard-linked files/,
+    "hard-linked vendor destination"
+  );
+  assert((await readFile(hardlinkOutside, "utf8")) === "external must remain unchanged", "hard-linked external file is not overwritten");
 } finally {
   await rm(tempRoot, { recursive: true, force: true });
 }
