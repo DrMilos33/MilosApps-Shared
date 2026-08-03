@@ -1,6 +1,6 @@
 # public-app-essentials/v1
 
-Version `1.1.1` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
+Version `1.1.2` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
 MilosApps: einen begrenzten Startzustand, einen wahrheitsgemäßen
 Datenschutzhinweis, Teilen, Datumsauswahl und Ort-/Regionssuche. Der Vertrag ist
 frameworkneutral und dependency-frei. Er ersetzt weder
@@ -52,7 +52,10 @@ ablehnen.
    bewusst verschieden sein, etwa bei ASP.NET-Assetrouten.
    `consumerEntryModule.sourceFile` benennt zusätzlich genau eine geprüfte
    JavaScript-/TypeScript-Datei aus `integrationFiles`;
-   `consumerEntryModule.runtimePath` ist deren exakte öffentliche Modul-URL.
+   `consumerEntryModule.runtimePath` ist deren exakte Modul-URL im deklarierten
+   Quell-`entryHtml`. Ein Bundler darf daraus im Build eine gehashte Datei
+   erzeugen; diese instabile Ausgabe gehört nicht ins Manifest, sondern wird
+   im app-eigenen Post-Build-/HTTP-Gate gegen das erzeugte HTML geprüft.
 2. Synchronisieren:
 
    ```text
@@ -75,7 +78,13 @@ ablehnen.
    sind für diese lokalen, bytegelockten Dateien unzulässig.
 4. Den Loader unmittelbar im `body` ausgeben. Das Icon ist app-eigen, erhält
    explizite `width`/`height`, muss als lokale SVG-Datei vorhanden sein und
-   bleibt höchstens 56 px groß:
+   bleibt höchstens 56 px groß. `loading.iconPath` benennt die physische Datei
+   relativ zum App-Repository. Falls die ausgelieferte URL davon abweicht,
+   benennt `loading.iconRuntimePath` exakt die Same-Origin-URL im `src`; fehlt
+   das optionale Feld, verwendet der Verifier rückwärtskompatibel `iconPath`
+   auch als Runtimepfad. Der statische Verifier kann eine spätere Webroute
+   nicht selbst abrufen; die Verbraucher-QA belegt deshalb zusätzlich HTTP
+   200, `image/svg+xml` und denselben SHA-256 wie die Datei aus `iconPath`:
 
    ```html
    <section data-milos-app-loading role="status" aria-live="polite">
@@ -161,7 +170,7 @@ wird für das gesamte aktuelle Dokument entfernt und auch durch ein wiederholtes
 Readiness-Signal nicht erneut geöffnet; beim nächsten Seitenaufruf darf er
 wieder erscheinen. Damit erzeugt der Shared-Baustein keinen optionalen
 Komfortschlüssel. Nur bei deklariertem `usesLocalStorage=true` entfernt die
-Runtime beim ersten Start von v1.1.1 die beiden veralteten app-eigenen Schlüssel
+Runtime ab v1.1.1 beim ersten Start die beiden veralteten app-eigenen Schlüssel
 `milosapps.<appKey>.privacyNotice.v1` und
 `milosapps.<appKey>.essentialCookieInfo.v1`. Bei `usesLocalStorage=false` greift
 die Runtime nicht auf Web Storage zu. Fremde App-Keys, andere lokale
@@ -251,47 +260,53 @@ Suche vorkommen. Deshalb prüft der Verifier die separate Suggestions-
 Capability, deren Evidenzdatei und `setSuggestionsProvider(...)`, nicht ein
 pauschales Hostwort-Verbot über sämtlichen App-Code.
 
-## Migration von 1.0.0 oder 1.1.0 auf 1.1.1
+## Migration von 1.0.0, 1.1.0 oder 1.1.1 auf 1.1.2
 
-1. `essentialsContract.version` auf `1.1.1` und `sharedCommit` auf den
-   unveränderlichen v1.1.1-Releasecommit setzen. `$schema` auf das vendorte
+1. `essentialsContract.version` auf `1.1.2` und `sharedCommit` auf den
+   unveränderlichen v1.1.2-Releasecommit setzen. `$schema` auf das vendorte
    Schema umstellen, `vendorDirectory` als Repositorypfad,
    `runtimeBasePath` als tatsächlich ausgelieferten URL-Basispfad und
    `consumerEntryModule` mit physischer Integrationsdatei plus exakter
-   öffentlicher Modul-URL ergänzen; danach alle sechs Verbraucherartefakte neu
-   synchronisieren und locken.
-2. `features.placeSuggestions` ergänzen. Der sichere Standard ist:
+   Modul-URL im deklarierten Quell-`entryHtml` ergänzen; danach alle sechs
+   Verbraucherartefakte neu synchronisieren und locken. Bei bundelnden Apps
+   belegt das getrennte Post-Build-/HTTP-Gate die erzeugte öffentliche URL.
+2. `loading.iconPath` auf die tatsächlich vorhandene SVG-Datei im Repository
+   setzen. Bei geroutetem Hosting zusätzlich `loading.iconRuntimePath` auf die
+   exakte öffentliche Same-Origin-URL setzen; ein Schattenasset oder eine
+   künstliche Route ist nicht erforderlich. Bei identischen Pfaden darf das
+   optionale Runtimefeld fehlen.
+3. `features.placeSuggestions` ergänzen. Der sichere Standard ist:
    `enabled=false`, `minChars=3`, `debounceMs=350`,
    `providerCapability="submit-only"`, `evidenceFile=null`.
-3. Bei `privacy.mode="no-cookies"` `features.privacyNotice=false` setzen und
+4. Bei `privacy.mode="no-cookies"` `features.privacyNotice=false` setzen und
    einen dauerhaft erreichbaren Link mit `data-milos-privacy-info` sowie der
    exakten `privacyUrl` ausgeben. Es entsteht kein Banner und kein Dismiss-Key.
-4. `privacy.storagePurposes` ergänzen. Bei `usesLocalStorage=true` jeden
+5. `privacy.storagePurposes` ergänzen. Bei `usesLocalStorage=true` jeden
    app-eigenen Schlüssel mit Zweck, Lebensdauer und `strictlyNecessary=true`
    deklarieren; optionale Zwecke sind in v1.1 nicht zulässig. Bei
    `usesLocalStorage=false` bleibt die Liste leer.
-5. Bei `privacy.mode="essential-only"` `features.privacyNotice=true` behalten;
+6. Bei `privacy.mode="essential-only"` `features.privacyNotice=true` behalten;
    Texte dürfen den Sachhinweis nicht als Einwilligung darstellen. Einen
    Dismiss-Key gibt es nicht mehr; die Schließaktion gilt nur im Dokument.
-6. Falls Vorschläge fachlich nötig sind: app-eigenen Autocomplete-Proxy
+7. Falls Vorschläge fachlich nötig sind: app-eigenen Autocomplete-Proxy
    nachweisen, Evidenzdatei eintragen, `consumer-autocomplete-proxy` deklarieren
    und separat `setSuggestionsProvider(...)` registrieren. Der normale
    `setSearchProvider(...)` bleibt die explizite Submit-Suche.
-7. `features.startup=true` setzen beziehungsweise beibehalten und die komplette
+8. `features.startup=true` setzen beziehungsweise beibehalten und die komplette
    statische Loaderstruktur ergänzen. Beide Essentials-CSS-Dateien stehen vor
    allen Modulskripten. Erst bei echter Fachbereitschaft ruft der App-Code
    `globalThis.milosAppEssentials.ready()` auf; ein altes, direkt dispatchtes
    Ready-Event reicht nicht. Das gilt ausdrücklich auch für Portal-v1.0-
    Verbraucher, die zuvor `startup=false` oder keinen Loader hatten.
-8. Das Schema ist nun selbst Teil des Locks. Themewerte sind ausschließlich
+9. Das Schema ist nun selbst Teil des Locks. Themewerte sind ausschließlich
    gültige Hex-Farben oder eng benannte app-eigene Custom Properties der Form
    `var(--token-name)`. Fallbacks, `url()`-Assets und beliebige CSS-Ausdrücke
    bleiben verboten. So darf eine App ihr geprüftes Hell-/Dunkel-Theme
    weiterverwenden, ohne fremde Ressourcen oder Deklarationen einzuschleusen.
-9. Im Vendorverzeichnis die enge Regel `* text eol=lf` setzen und den Verifier
+10. Im Vendorverzeichnis die enge Regel `* text eol=lf` setzen und den Verifier
    nach einem frischen Windows-Recheckout mit `core.autocrlf=true` erneut
    ausführen. Das schützt alle sechs bytegenauen Textartefakte.
-10. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
+11. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
    Escape/Abort/Stale-Result, Localewechsel und Disconnect-Cleanup in der Verbraucher-
    Browsermatrix prüfen.
 
@@ -305,7 +320,14 @@ werden nicht in den neuen Essential-Hinweiszustand übernommen.
 
 - frischer Start und langsamer Start: Icon höchstens 56 px Desktop / 48 px
   mobil, kein ungestylter Shell-Icon-Flash; Loader verschwindet erst nach
-  `globalThis.milosAppEssentials.ready()` und tatsächlich fertiger App;
+  `globalThis.milosAppEssentials.ready()` und tatsächlich fertiger App; die
+  effektive `iconRuntimePath`-URL liefert Same-Origin HTTP 200 mit
+  `image/svg+xml`, und ihr dekodierter Antwortinhalt stimmt per SHA-256 mit
+  der app-eigenen Datei aus `iconPath` überein;
+- bei bundelnden Verbrauchern: erzeugtes HTML referenziert nach dem Build einen
+  tatsächlich vorhandenen Same-Origin-Verbraucherentry; dessen HTTP-Antwort
+  ist 200 mit gültigem JavaScript-MIME und das Modul führt ohne Konsolenfehler
+  aus. Ein gehashter Buildname wird nicht ins Shared-Manifest zurückgeschrieben;
 - Datenschutzmodus in DE/EN: `no-cookies` ohne Banner/State mit dauerhaftem
   Link auf die exakte Manifest-`privacyUrl`; `essential-only` als Sachhinweis
   ohne Consent-Sprache;

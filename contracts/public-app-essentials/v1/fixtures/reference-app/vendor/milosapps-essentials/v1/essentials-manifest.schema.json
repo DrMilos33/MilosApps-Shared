@@ -20,7 +20,11 @@
       "required": ["sourceFile", "runtimePath"],
       "properties": {
         "sourceFile": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+\\.(?:js|mjs|ts|tsx|jsx)$" },
-        "runtimePath": { "type": "string", "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|//)(?:(?:\\./)|/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*(?:/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*$" }
+        "runtimePath": {
+          "description": "Exact module URL in the declared source entryHtml before optional consumer bundling; generated build URLs are verified by the consumer build gate.",
+          "type": "string",
+          "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|//)(?:(?:\\./)|/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*(?:/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*$"
+        }
       }
     },
     "integrationFiles": {
@@ -36,6 +40,7 @@
       "properties": {
         "appName": { "type": "string", "minLength": 1, "maxLength": 60 },
         "iconPath": { "type": "string", "pattern": "^(?!https?:|[A-Za-z]:|/|.*\\.\\.).+\\.svg$" },
+        "iconRuntimePath": { "type": "string", "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|//)(?:(?:\\./)|/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*(?:/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*\\.svg$" },
         "message": {
           "type": "object",
           "additionalProperties": false,
@@ -150,7 +155,7 @@
       "required": ["id", "version", "sharedCommit", "vendorDirectory", "runtimeBasePath"],
       "properties": {
         "id": { "const": "public-app-essentials/v1" },
-        "version": { "const": "1.1.1" },
+        "version": { "const": "1.1.2" },
         "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" },
         "runtimeBasePath": { "type": "string", "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|//)(?:(?:\\./)|/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*(?:/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*$" }

@@ -15,6 +15,7 @@
   "loading": {
     "appName": "Reiseplaner",
     "iconPath": "icon.svg",
+    "iconRuntimePath": "icon.svg",
     "message": {
       "de": "Reiseplaner wird geöffnet …",
       "en": "Opening trip planner …"
@@ -60,7 +61,7 @@
   },
   "essentialsContract": {
     "id": "public-app-essentials/v1",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "sharedCommit": "0000000000000000000000000000000000000000",
     "vendorDirectory": "vendor/milosapps-essentials/v1",
     "runtimeBasePath": "vendor/milosapps-essentials/v1"

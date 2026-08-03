@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.1";
+const VERSION = "1.1.2";
 const CONSUMERS = new Set([
   "portal",
   "noodle-calculator",
@@ -683,6 +683,11 @@ function localUrlEquals(value, expected) {
   return normalizedValue !== null && normalizedExpected !== null && normalizedValue === normalizedExpected;
 }
 
+function exactLocalUrlEquals(value, expected) {
+  if (/[?#]/.test(String(value || "")) || /[?#]/.test(String(expected || ""))) return false;
+  return localUrlEquals(value, expected);
+}
+
 function parseArgs(argv) {
   const result = {};
   for (let index = 0; index < argv.length; index += 2) {
@@ -807,6 +812,8 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   if (manifest.$schema !== expectedSchema) fail("manifest $schema must resolve to the locked vendored schema");
   if (lock.manifestSha256 !== manifestSha256(manifest)) fail("lock/manifest configuration mismatch");
   if (lock.runtimeBasePath !== manifest.essentialsContract.runtimeBasePath) fail("lock/runtime base path mismatch");
+  const loadingIconRuntimePath = manifest.loading?.iconRuntimePath || manifest.loading?.iconPath;
+  if (lock.loadingIconRuntimePath !== loadingIconRuntimePath) fail("lock/loading icon runtime path mismatch");
   if (JSON.stringify(Object.keys(lock.artifacts || {}).sort()) !== JSON.stringify([...ARTIFACTS].sort())) fail("lock artifact set mismatch");
   if (manifest.public !== true || manifest.loginRequired !== false) fail("consumer must be a public no-login surface");
   const fixture = manifest.appKey === "reference-app" && /^0+$/.test(manifest.essentialsContract?.sharedCommit || "");
@@ -898,10 +905,11 @@ export async function verifyEssentials(appRootInput, manifestInput) {
     if (!htmlStartTags(entry).some(({ source }) => hasAttribute(source, marker))) fail(`startup marker is missing: ${marker}`);
   }
   const iconPath = manifest.loading?.iconPath;
+  const iconRuntimePath = loadingIconRuntimePath;
   const iconFile = await confinedPath(appRoot, path.resolve(appRoot, iconPath), "loading icon");
   await requiredFile(iconFile, "loading icon");
-  const loadingIcon = htmlTags(entry, "img").map(({ source }) => source).find((source) => hasAttribute(source, "data-milos-loading-icon") && localUrlEquals(attributeValue(source, "src"), iconPath));
-  if (!loadingIcon) fail("loading icon must use the app-owned manifest iconPath");
+  const loadingIcon = htmlTags(entry, "img").map(({ source }) => source).find((source) => hasAttribute(source, "data-milos-loading-icon") && exactLocalUrlEquals(attributeValue(source, "src"), iconRuntimePath));
+  if (!loadingIcon) fail("loading icon must use loading.iconRuntimePath or its iconPath fallback");
   const width = Number(attributeValue(loadingIcon, "width"));
   const height = Number(attributeValue(loadingIcon, "height"));
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 56 || height > 56) fail("loading icon needs explicit width/height no larger than 56");

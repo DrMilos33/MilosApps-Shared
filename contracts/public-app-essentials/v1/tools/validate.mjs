@@ -55,13 +55,16 @@ const syncContent = await readFile(path.join(root, "tools", "sync.mjs"));
 const syncText = syncContent.toString("utf8");
 const readme = await readFile(path.join(root, "README.md"), "utf8");
 
-assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.1", "contract id/version");
+assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.2", "contract id/version");
 assert(contract.status === "stable", "stable contract status");
 assert(schemaErrors(schema, contract).length === 0, "contract validates against its schema");
 assert(schema.properties.id.const === contract.id && schema.properties.version.const === contract.version, "contract schema pins id/version");
 assert(JSON.stringify([...contract.eligibleConsumers].sort()) === JSON.stringify(expectedConsumers), "exact eligible consumers");
 assert(contract.excludedConsumers.includes("calendar") && contract.excludedClasses.includes("login-required-app"), "calendar and login apps excluded");
 assert(contract.modules.startup.iconMaxPx === 56 && contract.modules.startup.iconMaxMobilePx === 48, "bounded startup icon");
+assert(contract.delivery.loadingIconSourceRuntimeSeparationSupported && contract.modules.startup.iconSourcePathField === "loading.iconPath" && contract.modules.startup.iconRuntimePathField === "loading.iconRuntimePath" && contract.modules.startup.iconRuntimePathFallback === "loading.iconPath", "loading icon source and runtime paths are distinct with a compatible fallback");
+assert(contract.delivery.consumerEntryRuntimePathScope === "declared-source-entry-html" && contract.delivery.consumerBuildRuntimeVerificationRequired && contract.quality.builtConsumerEntryHttpQaRequired, "source entry path and generated build runtime are verified at their proper boundaries");
+assert(contract.modules.startup.runtimeIconResponseQaRequired && contract.modules.startup.runtimeIconContentType === "image/svg+xml" && contract.modules.startup.runtimeIconSourceSha256MatchRequired, "consumer QA proves the routed icon response and source identity");
 assert(contract.modules.startup.readyApi === "globalThis.milosAppEssentials.ready()" && contract.modules.startup.directConsumerEventDispatchAllowed === false, "race-safe generated readiness API");
 assert(contract.modules.privacyNotice.privacyInformationRequired === true && contract.modules.privacyNotice.runtimeNoticeRequiredByMode["no-cookies"] === false && contract.modules.privacyNotice.runtimeNoticeRequiredByMode["essential-only"] === true, "persistent privacy information is distinct from the mode-dependent runtime notice");
 assert(contract.modules.privacyNotice.fakeConsentForbidden && contract.modules.privacyNotice.optionalTrackingAllowed === false, "truthful privacy notice");
@@ -89,8 +92,8 @@ assert(example.public === true && example.loginRequired === false && example.pro
 assert(example.privacy.optionalTracking === false && example.features.privacyNotice === false && example.features.share === true, "example no-cookies/share boundary");
 assert(example.privacy.usesLocalStorage && example.privacy.storagePurposes.length === 1 && example.privacy.storagePurposes[0].strictlyNecessary === true, "example declares necessary app storage purpose");
 assert(example.features.placeSuggestions.enabled === false && example.features.placeSuggestions.providerCapability === "submit-only", "example defaults to submit-only place search");
-assert(example.$schema === "./vendor/milosapps-essentials/v1/essentials-manifest.schema.json" && example.essentialsContract.runtimeBasePath === "vendor/milosapps-essentials/v1" && example.consumerEntryModule.sourceFile === "app.js" && example.consumerEntryModule.runtimePath === "app.js", "example uses its locked schema and explicit runtime/consumer entry paths");
-assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.1", "release identity");
+assert(example.$schema === "./vendor/milosapps-essentials/v1/essentials-manifest.schema.json" && example.essentialsContract.runtimeBasePath === "vendor/milosapps-essentials/v1" && example.consumerEntryModule.sourceFile === "app.js" && example.consumerEntryModule.runtimePath === "app.js" && example.loading.iconPath === "icon.svg" && example.loading.iconRuntimePath === "icon.svg", "example uses its locked schema and explicit runtime/consumer/icon paths");
+assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.2", "release identity");
 assert(JSON.stringify(Object.keys(release.artifacts || {}).sort()) === JSON.stringify(expectedReleaseArtifacts), "exact release source artifact set");
 assert(release.artifacts["dist/milos-app-essentials.css"] === digest(css), "release CSS hash");
 assert(release.artifacts["dist/milos-app-essentials.js"] === digest(runtime), "release runtime hash");
@@ -149,15 +152,16 @@ assert(runtimeText.includes("normalizeStoragePurposes") && runtimeText.includes(
 assert(verifier.toString("utf8").includes('manifest.privacy?.mode !== "no-cookies"'), "verifier enumerates privacy modes");
 assert(verifier.toString("utf8").includes("validateStoragePurposes") && verifier.toString("utf8").includes("optional device storage is forbidden"), "verifier rejects optional device storage");
 assert(syncText.includes('execFileSync("git"') && syncText.includes("does not match --source-commit") && syncText.includes("release checksum mismatch"), "sync verifies Git-object and release provenance");
-assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 oder 1.1.0 auf 1.1.1") && readme.includes("runtimeBasePath") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains migration, readiness, privacy, LF and provider boundaries without the legacy event recipe");
+assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0, 1.1.0 oder 1.1.1 auf 1.1.2") && readme.includes("runtimeBasePath") && readme.includes("Modul-URL im deklarierten Quell-`entryHtml`") && readme.includes("loading.iconRuntimePath") && readme.includes("image/svg+xml") && readme.includes("SHA-256") && readme.includes("Post-Build-/HTTP-Gate") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains source/build entry boundaries, icon response QA, readiness, privacy, LF and provider boundaries without the legacy event recipe");
 
 const lifecycleAssertions = await validateLifecycle(new URL("../dist/milos-app-essentials.js", import.meta.url));
 assert(lifecycleAssertions >= 27, "deterministic lifecycle, privacy, date and provider regressions");
 
 const fixture = await verifyEssentials(fixtureRoot, "essentials-manifest.json");
-assert(fixture.appKey === "reference-app" && fixture.version === "1.1.1", "reference fixture verifies");
+assert(fixture.appKey === "reference-app" && fixture.version === "1.1.2", "reference fixture verifies");
 const fixtureLock = await json("fixtures/reference-app/vendor/milosapps-essentials/v1/essentials-lock.json");
 assert(JSON.stringify(Object.keys(fixtureLock.artifacts || {}).sort()) === JSON.stringify(expectedConsumerArtifacts), "exact consumer lock artifact set");
+assert(fixtureLock.loadingIconRuntimePath === fixtureManifest.loading.iconRuntimePath, "loading icon runtime path is locked");
 
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), "milos-essentials-v1-"));
 try {
@@ -407,6 +411,74 @@ try {
   await syncEssentials({ "app-root": mappedRuntimeRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
   const mappedRuntime = await verifyEssentials(mappedRuntimeRoot, "essentials-manifest.json");
   assert(mappedRuntime.appKey === "reference-app", "explicit runtimeBasePath supports physical-to-public hosting mappings");
+
+  const iconFallbackRoot = path.join(tempRoot, "icon-runtime-fallback");
+  await cp(fixtureRoot, iconFallbackRoot, { recursive: true });
+  const iconFallbackManifestPath = path.join(iconFallbackRoot, "essentials-manifest.json");
+  const iconFallbackManifest = JSON.parse(await readFile(iconFallbackManifestPath, "utf8"));
+  delete iconFallbackManifest.loading.iconRuntimePath;
+  await writeFile(iconFallbackManifestPath, `${JSON.stringify(iconFallbackManifest, null, 2)}\n`, "utf8");
+  const iconFallbackSync = await syncEssentials({ "app-root": iconFallbackRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const iconFallback = await verifyEssentials(iconFallbackRoot, "essentials-manifest.json");
+  assert(iconFallback.appKey === "reference-app" && iconFallbackSync.lock.loadingIconRuntimePath === "icon.svg", "omitted iconRuntimePath falls back to iconPath");
+
+  const mappedIconRoot = path.join(tempRoot, "mapped-loading-icon");
+  await cp(fixtureRoot, mappedIconRoot, { recursive: true });
+  const mappedIconManifestPath = path.join(mappedIconRoot, "essentials-manifest.json");
+  const mappedIconManifest = JSON.parse(await readFile(mappedIconManifestPath, "utf8"));
+  mappedIconManifest.loading.iconRuntimePath = "/noodle-assets/noodle-icon.svg";
+  await writeFile(mappedIconManifestPath, `${JSON.stringify(mappedIconManifest, null, 2)}\n`, "utf8");
+  const mappedIconEntryPath = path.join(mappedIconRoot, "index.html");
+  await writeFile(mappedIconEntryPath, (await readFile(mappedIconEntryPath, "utf8")).replace('src="icon.svg"', 'src="/noodle-assets/noodle-icon.svg"'), "utf8");
+  const mappedIconSync = await syncEssentials({ "app-root": mappedIconRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const mappedIcon = await verifyEssentials(mappedIconRoot, "essentials-manifest.json");
+  assert(mappedIcon.appKey === "reference-app" && mappedIconSync.lock.loadingIconRuntimePath === "/noodle-assets/noodle-icon.svg", "loading icon supports distinct physical and public paths");
+
+  const wrongMappedIconRoot = path.join(tempRoot, "wrong-mapped-loading-icon");
+  await cp(mappedIconRoot, wrongMappedIconRoot, { recursive: true });
+  const wrongMappedIconEntryPath = path.join(wrongMappedIconRoot, "index.html");
+  await writeFile(wrongMappedIconEntryPath, (await readFile(wrongMappedIconEntryPath, "utf8")).replace('/noodle-assets/noodle-icon.svg', 'icon.svg'), "utf8");
+  await expectFailure(() => verifyEssentials(wrongMappedIconRoot, "essentials-manifest.json"), /iconRuntimePath/, "loader HTML must use the declared icon runtime path");
+
+  for (const [name, suffix] of [["query-loader-icon", "?variant=unexpected"], ["fragment-loader-icon", "#unexpected"]]) {
+    const suffixedIconRoot = path.join(tempRoot, name);
+    await cp(fixtureRoot, suffixedIconRoot, { recursive: true });
+    const suffixedIconEntryPath = path.join(suffixedIconRoot, "index.html");
+    await writeFile(suffixedIconEntryPath, (await readFile(suffixedIconEntryPath, "utf8")).replace('src="icon.svg"', `src="icon.svg${suffix}"`), "utf8");
+    await expectFailure(() => verifyEssentials(suffixedIconRoot, "essentials-manifest.json"), /iconRuntimePath/, `${name} cannot alter the locked icon URL`);
+  }
+
+  const mismatchedIconLockRoot = path.join(tempRoot, "mismatched-icon-lock");
+  await cp(mappedIconRoot, mismatchedIconLockRoot, { recursive: true });
+  const mismatchedIconLockPath = path.join(mismatchedIconLockRoot, "vendor", "milosapps-essentials", "v1", "essentials-lock.json");
+  const mismatchedIconLock = JSON.parse(await readFile(mismatchedIconLockPath, "utf8"));
+  mismatchedIconLock.loadingIconRuntimePath = "icon.svg";
+  await writeFile(mismatchedIconLockPath, `${JSON.stringify(mismatchedIconLock, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(mismatchedIconLockRoot, "essentials-manifest.json"), /lock\/loading icon runtime path mismatch/, "loading icon runtime path is locked");
+
+  for (const [name, invalidRuntimePath] of [
+    ["remote-icon-runtime", "https://evil.example/icon.svg"],
+    ["protocol-relative-icon-runtime", "//evil.example/icon.svg"],
+    ["data-icon-runtime", "data:image/svg+xml,evil.svg"],
+    ["javascript-icon-runtime", "javascript:evil.svg"],
+    ["parent-icon-runtime", "../icon.svg"],
+    ["backslash-icon-runtime", "assets\\icon.svg"],
+    ["query-icon-runtime", "icon.svg?v=1"],
+    ["fragment-icon-runtime", "icon.svg#mark"],
+    ["non-svg-icon-runtime", "icon.png"]
+  ]) {
+    const invalidIconRoot = path.join(tempRoot, name);
+    await cp(fixtureRoot, invalidIconRoot, { recursive: true });
+    const invalidIconManifestPath = path.join(invalidIconRoot, "essentials-manifest.json");
+    const invalidIconManifest = JSON.parse(await readFile(invalidIconManifestPath, "utf8"));
+    invalidIconManifest.loading.iconRuntimePath = invalidRuntimePath;
+    await writeFile(invalidIconManifestPath, `${JSON.stringify(invalidIconManifest, null, 2)}\n`, "utf8");
+    await expectFailure(
+      () => syncEssentials({ "app-root": invalidIconRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+      /iconRuntimePath|pattern mismatch/,
+      `${name} is rejected`
+    );
+  }
 
   const tsxMarkupRoot = path.join(tempRoot, "tsx-markup");
   await cp(fixtureRoot, tsxMarkupRoot, { recursive: true });

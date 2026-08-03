@@ -29,9 +29,11 @@ Integrationsverträge.
   allgemeiner, CSP-sicher vendorter Interaktionsbaukasten für einen begrenzten
   Loading Screen, wahrheitsgemäße Datenschutzmodi, layoutstabiles Teilen,
   komponentenbreitenabhängige Datumsauswahl und eine providerneutrale
-  Ort-/Regionssuche. Version 1.1.1 zeigt bei `no-cookies` keinen Banner,
+  Ort-/Regionssuche. Version 1.1.2 zeigt bei `no-cookies` keinen Banner,
   hält natives Teilen visuell still, erzwingt den Startup-Vertrag und
   validiert Schema, Release-Provenienz sowie Provider-Lebenszyklen fail-closed.
+  Physischer Icon-Quellpfad und öffentliche Same-Origin-URL können bei
+  geroutetem Hosting getrennt deklariert werden.
   Vorschläge bleiben an einen expliziten app-eigenen Proxy-Nachweis gebunden.
   Kalender und Login-Apps sind ausgeschlossen.
 

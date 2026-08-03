@@ -8,6 +8,7 @@ export const milosAppEssentials = initMilosAppEssentials({
   "loading": {
     "appName": "Reiseplaner",
     "iconPath": "icon.svg",
+    "iconRuntimePath": "icon.svg",
     "message": {
       "de": "Reiseplaner wird geöffnet …",
       "en": "Opening trip planner …"

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## public-app-essentials 1.1.2 – 2026-08-03
+
+- `loading.iconPath` bleibt der physische, app-eigene SVG-Quellpfad;
+  `loading.iconRuntimePath` kann zusätzlich die abweichende öffentliche
+  Same-Origin-URL benennen. Ohne das neue Feld bleibt `iconPath` der
+  rückwärtskompatible Runtime-Fallback.
+- Schema, Sync, portabler Verifier, Referenzfixture und Regressionen trennen
+  damit Repository- und Hostingpfad fail-closed, ohne Schattenassets oder
+  künstliche Webrouten zu erzwingen. Die app-eigene DEV-QA belegt zusätzlich
+  200/`image/svg+xml` und SHA-256-Identität der gerouteten Antwort.
+- `consumerEntryModule.runtimePath` bezeichnet ausdrücklich den Modulpfad im
+  geprüften Quell-HTML. Bundler-Hashes bleiben app-eigene Buildausgaben und
+  werden dort per Post-Build-/HTTP-Gate statt als instabiler Manifestwert
+  belegt.
+
 ## public-app-essentials 1.1.1 – 2026-08-03
 
 - Manifest-Schema, Sync und portabler Verifier erzwingen nun den verpflichtenden

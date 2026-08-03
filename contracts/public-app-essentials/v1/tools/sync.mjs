@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { schemaErrors } from "../dist/verify.mjs";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.1";
+const VERSION = "1.1.2";
 const CONSUMERS = new Set([
   "portal",
   "noodle-calculator",
@@ -305,6 +305,7 @@ export async function syncEssentials(options) {
     manifestSha256: manifestSha256(manifest),
     vendorDirectory: path.relative(appRoot, vendorRoot).replaceAll(path.sep, "/"),
     runtimeBasePath: manifest.essentialsContract.runtimeBasePath,
+    loadingIconRuntimePath: manifest.loading.iconRuntimePath || manifest.loading.iconPath,
     artifacts: {
       "milos-app-essentials.css": sha256(runtimeCss),
       "milos-app-essentials-theme.css": sha256(themeCss),
