@@ -1,6 +1,6 @@
 # public-app-essentials/v1
 
-Version `1.1.4` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
+Version `1.1.5` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
 MilosApps: einen begrenzten Startzustand, einen wahrheitsgemäßen
 Datenschutzhinweis, Teilen, Datumsauswahl und Ort-/Regionssuche. Der Vertrag ist
 frameworkneutral und dependency-frei. Er ersetzt weder
@@ -98,6 +98,16 @@ ablehnen.
      </div>
    </section>
    ```
+
+   Verwendet das Entry außerdem `milos-app-shell`, enthält es genau ein
+   app-eigenes `<svg slot="app-icon">` mit intrinsischem
+   `width="38" height="38"`. Das kritische Essentials-CSS begrenzt dieses SVG
+   schon bei noch undefiniertem Shell-Element ebenfalls auf 38 mal 38 Pixel und
+   hält es bis zum Upgrade verborgen; der unveränderte Shell-v2.0.3-Vertrag
+   übernimmt danach dieselbe Größe. Die Verbraucher-QA blockiert
+   Shell-Bootstrap und Komponenten-CSS getrennt und misst den Zustand mit
+   geladener Essentials-CSS vor dem Upgrade, den Übergang nach dem Upgrade und
+   den Endzustand. Ein app-eigener CSS-Override ist dafür nicht vorgesehen.
 
 5. `bootstrap.js` als lokales Modul laden. Wenn die App wirklich bedienbar ist,
    signalisiert sie das ausdrücklich:
@@ -311,16 +321,20 @@ ihre veröffentlichten Limits bestimmt. Eine App darf das deshalb für ein
 entsprechend belegtes DEV verwenden, erhält dadurch aber keine pauschale
 Productionfreigabe. Das ist keine Rechtsberatung.
 
-## Migration von 1.0.0 bis 1.1.3 auf 1.1.4
+## Migration von 1.0.0 bis 1.1.4 auf 1.1.5
 
-1. `essentialsContract.version` auf `1.1.4` und `sharedCommit` auf den
-   unveränderlichen v1.1.4-Releasecommit setzen. `$schema` auf das vendorte
+1. `essentialsContract.version` auf `1.1.5` und `sharedCommit` auf den
+   unveränderlichen v1.1.5-Releasecommit setzen. `$schema` auf das vendorte
    Schema umstellen, `vendorDirectory` als Repositorypfad,
    `runtimeBasePath` als tatsächlich ausgelieferten URL-Basispfad und
    `consumerEntryModule` mit physischer Integrationsdatei plus exakter
    Modul-URL im deklarierten Quell-`entryHtml` ergänzen; danach alle sechs
    Verbraucherartefakte neu synchronisieren und locken. Bei bundelnden Apps
    belegt das getrennte Post-Build-/HTTP-Gate die erzeugte öffentliche URL.
+   Verwendet die App `milos-app-shell`, erhält ihr bestehendes
+   `svg[slot="app-icon"]` zusätzlich exakt `width="38" height="38"`; das
+   portabel verifizierte Markup und das kritische 38-px-CSS werden atomar
+   übernommen.
 2. `loading.iconPath` auf die tatsächlich vorhandene SVG-Datei im Repository
    setzen. Bei geroutetem Hosting zusätzlich `loading.iconRuntimePath` auf die
    exakte öffentliche Same-Origin-URL setzen; ein Schattenasset oder eine
@@ -381,7 +395,10 @@ werden nicht in den neuen Essential-Hinweiszustand übernommen.
 
 - frischer Start und langsamer Start: Icon exakt 32 mal 32 px in Quellmarkup,
   auf Desktop, mobil und bei 200 Prozent sowie vor und nach dem CSS-Laden; kein
-  ungestylter Shell-Icon-Flash; Loader verschwindet erst nach
+  ungestylter Shell-Icon-Flash; das Shell-Slot-SVG bleibt nach geladener
+  Essentials-CSS vor dem Custom-Element-Upgrade, nach dem Upgrade bei
+  verzögerter Shell-Komponenten-CSS und im Endzustand jeweils höchstens
+  38 mal 38 px; Loader verschwindet erst nach
   `globalThis.milosAppEssentials.ready()` und tatsächlich fertiger App; die
   effektive `iconRuntimePath`-URL liefert Same-Origin HTTP 200 mit
   `image/svg+xml`, und ihr dekodierter Antwortinhalt stimmt per SHA-256 mit

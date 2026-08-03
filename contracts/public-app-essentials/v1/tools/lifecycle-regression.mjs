@@ -458,7 +458,7 @@ export async function validateLifecycle(runtimeUrl) {
       }
     };
     const directEssentials = initMilosAppEssentials(directProviderConfig);
-    assert(directEssentials.version === "1.1.4", "runtime accepts the evidenced direct autocomplete capability");
+    assert(directEssentials.version === "1.1.5", "runtime accepts the evidenced direct autocomplete capability");
     let unknownCapabilityError;
     try {
       initMilosAppEssentials({

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## public-app-essentials 1.1.5 – 2026-08-03
+
+- Das kritische CSS begrenzt das app-eigene Shell-Slot-SVG bereits bei noch
+  undefiniertem `milos-app-shell` auf dieselben 38 mal 38 Pixel wie der
+  unveränderte Shell-v2.0.3-Vertrag.
+- Der portable Verifier verlangt bei Shell-Verbrauchern genau ein app-eigenes
+  `svg[slot="app-icon"]` mit intrinsischem `width="38" height="38"` im
+  Quell-Entry. So sind der Zustand mit Essentials-CSS vor dem Upgrade, der
+  Übergang vor der Shell-Komponenten-CSS und der Endzustand gemeinsam prüfbar.
+- Das Essentials-Ladeicon bleibt 32 mal 32 Pixel. Runtime, Loaderkarte, Ready,
+  Privacy, Share, Date, Place, CSP, MIME und Shell v2.0.3 bleiben unverändert.
+
 ## public-app-essentials 1.1.4 – 2026-08-03
 
 - Eingabevorschläge akzeptieren neben einem app-eigenen Proxy nun eng die neue

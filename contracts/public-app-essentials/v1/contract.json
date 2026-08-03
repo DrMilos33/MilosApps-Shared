@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "id": "public-app-essentials/v1",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "status": "stable",
   "purpose": "shared-startup-privacy-share-date-and-place-interactions",
   "delivery": {
@@ -66,6 +66,14 @@
       "requiredForPublicApps": true,
       "iconMaxPx": 32,
       "iconMaxMobilePx": 32,
+      "shellSlotIconIntrinsicPx": 38,
+      "shellSlotIconCriticalMaxPx": 38,
+      "shellSlotIconMarkupRequired": true,
+      "shellSlotIconLifecycleStates": [
+        "pre-upgrade-with-critical-css",
+        "post-upgrade-before-shell-component-css",
+        "post-shell-component-css"
+      ],
       "iconSourcePathField": "loading.iconPath",
       "iconRuntimePathField": "loading.iconRuntimePath",
       "iconRuntimePathFallback": "loading.iconPath",
@@ -165,6 +173,7 @@
     "controlsMinTargetPx": 44,
     "selectInlineEndSafeAreaMinRem": 2.25,
     "startupIconMaxPx": 32,
+    "shellSlotIconMaxPx": 38,
     "startupIconMaxViewportRatio": 0.18,
     "horizontalOverflowAllowed": false,
     "reducedMotionRequired": true,

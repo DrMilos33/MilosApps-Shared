@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.4";
+const VERSION = "1.1.5";
 const PLACE_SUGGESTION_CAPABILITIES = new Set(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]);
 const SHELL_ID = "public-app-shell/v2";
 const SHELL_VERSION = "2.0.3";
@@ -669,6 +669,19 @@ function hasAttribute(tag, attribute) {
   return tagAttributes(tag).has(attribute.toLowerCase());
 }
 
+function verifyShellSlotIcon(entry) {
+  const shells = htmlTags(entry, "milos-app-shell");
+  const slotIcons = htmlTags(entry, "svg")
+    .map(({ source }) => source)
+    .filter((source) => attributeValue(source, "slot") === "app-icon");
+  if (shells.length === 0 && slotIcons.length === 0) return;
+  if (shells.length !== 1) fail("Shell integration requires exactly one milos-app-shell in entry HTML");
+  if (slotIcons.length !== 1) fail("Shell integration requires exactly one app-owned SVG with slot=app-icon in entry HTML");
+  if (attributeValue(slotIcons[0], "width") !== "38" || attributeValue(slotIcons[0], "height") !== "38") {
+    fail("Shell app icon needs explicit width/height of exactly 38");
+  }
+}
+
 function isActiveCriticalStylesheet(tag) {
   const rel = (attributeValue(tag, "rel") || "").toLowerCase().split(/[\t\n\f\r ]+/).filter(Boolean);
   if (!rel.includes("stylesheet") || rel.includes("alternate") || hasAttribute(tag, "disabled") || hasAttribute(tag, "integrity")) return false;
@@ -929,6 +942,7 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   const entry = extractHtmlMarkup(entryRaw);
   if (htmlTags(entry, "base").length) fail("base elements are forbidden because runtime URLs must retain manifest semantics");
   if (htmlTags(entry, "template").length) fail("inert template elements cannot provide essentials integration evidence");
+  verifyShellSlotIcon(entry);
   const vendorWeb = manifest.essentialsContract.runtimeBasePath;
   const baseCss = `${vendorWeb}/milos-app-essentials.css`;
   const themeCss = `${vendorWeb}/milos-app-essentials-theme.css`;

@@ -164,7 +164,7 @@
       "required": ["id", "version", "sharedCommit", "vendorDirectory", "runtimeBasePath"],
       "properties": {
         "id": { "const": "public-app-essentials/v1" },
-        "version": { "const": "1.1.4" },
+        "version": { "const": "1.1.5" },
         "sharedCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
         "vendorDirectory": { "type": "string", "pattern": "^(?![A-Za-z]:|/|.*\\.\\.).+$" },
         "runtimeBasePath": { "type": "string", "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|//)(?:(?:\\./)|/)?[A-Za-z0-9_~-][A-Za-z0-9._~-]*(?:/[A-Za-z0-9_~-][A-Za-z0-9._~-]*)*$" }

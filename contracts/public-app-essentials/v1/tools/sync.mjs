@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { schemaErrors } from "../dist/verify.mjs";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.4";
+const VERSION = "1.1.5";
 const PLACE_SUGGESTION_CAPABILITIES = new Set(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]);
 const SHELL_ID = "public-app-shell/v2";
 const SHELL_VERSION = "2.0.3";
