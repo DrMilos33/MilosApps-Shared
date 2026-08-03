@@ -1,5 +1,5 @@
 const CONTRACT_ID = "public-app-essentials/v1";
-const CONTRACT_VERSION = "1.1.5";
+const CONTRACT_VERSION = "1.1.6";
 const PLACE_SUGGESTION_CAPABILITIES = new Set(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]);
 const LOCALE_EVENT = "milosapps:localechange";
 const READY_EVENT = "milosapps:ready";
@@ -483,12 +483,12 @@ export class MilosDatePicker extends HTMLElement {
       return;
     }
     if (normalized === (this.currentValue || "")) {
-      input.value = normalized;
+      if (input.value !== normalized) input.value = normalized;
       year.value = normalized.slice(0, 4);
       return;
     }
     this.currentValue = normalized;
-    input.value = normalized;
+    if (input.value !== normalized) input.value = normalized;
     year.value = normalized.slice(0, 4);
     if (normalized) this.setAttribute("value", normalized);
     else this.removeAttribute("value");

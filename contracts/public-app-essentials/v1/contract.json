@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "id": "public-app-essentials/v1",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "status": "stable",
   "purpose": "shared-startup-privacy-share-date-and-place-interactions",
   "delivery": {
@@ -122,6 +122,7 @@
       "implementation": "native-date-input-plus-year-jump",
       "isoValue": "YYYY-MM-DD",
       "normalChangeEventsPerCommit": 1,
+      "redundantNativeValueAssignmentForbidden": true,
       "reflowBasis": "component-inline-size",
       "selectInlineEndSafeAreaRequired": true
     },

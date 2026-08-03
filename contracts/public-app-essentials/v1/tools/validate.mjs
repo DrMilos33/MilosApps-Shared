@@ -59,7 +59,7 @@ const readme = await readFile(path.join(root, "README.md"), "utf8");
 const referenceEntry = await readFile(path.join(fixtureRoot, "index.html"), "utf8");
 const referenceFallback = await readFile(path.join(fixtureRoot, "loading.html"), "utf8");
 
-assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.5", "contract id/version");
+assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.6", "contract id/version");
 assert(contract.status === "stable", "stable contract status");
 assert(schemaErrors(schema, contract).length === 0, "contract validates against its schema");
 assert(schema.properties.id.const === contract.id && schema.properties.version.const === contract.version, "contract schema pins id/version");
@@ -81,6 +81,7 @@ assert(contract.modules.privacyNotice.essentialOnlyBehavior === "informational-d
 assert(contract.modules.share.nativeApi === "navigator.share" && contract.modules.share.fallback === "clipboard", "share strategy");
 assert(contract.modules.share.nativeSuccessFeedback === "silent" && contract.modules.share.nativeAbortFeedback === "silent" && contract.modules.share.stableOuterDimensionsRequired, "share feedback is stable and native-silent");
 assert(contract.modules.datePicker.implementation === "native-date-input-plus-year-jump" && contract.modules.datePicker.normalChangeEventsPerCommit === 1, "native date foundation and single change event");
+assert(contract.modules.datePicker.redundantNativeValueAssignmentForbidden === true, "native date segment editing forbids redundant input value assignments");
 assert(contract.modules.datePicker.reflowBasis === "component-inline-size" && contract.modules.datePicker.selectInlineEndSafeAreaRequired, "date component reflow and select safe area");
 assert(contract.modules.placeSearch.providerOwnedByConsumer && contract.modules.placeSearch.explicitSubmitRequired, "provider-neutral explicit place search");
 assert(contract.modules.placeSearch.publicNominatimAutocompleteForbidden && contract.modules.placeSearch.publicNominatimSubmitSearchAllowed, "public Nominatim remains submit-only");
@@ -101,7 +102,7 @@ assert(example.privacy.optionalTracking === false && example.features.privacyNot
 assert(example.privacy.usesLocalStorage && example.privacy.storagePurposes.length === 1 && example.privacy.storagePurposes[0].strictlyNecessary === true, "example declares necessary app storage purpose");
 assert(example.features.placeSuggestions.enabled === false && example.features.placeSuggestions.providerCapability === "submit-only", "example defaults to submit-only place search");
 assert(example.$schema === "./vendor/milosapps-essentials/v1/essentials-manifest.schema.json" && example.essentialsContract.runtimeBasePath === "vendor/milosapps-essentials/v1" && example.consumerEntryModule.sourceFile === "app.js" && example.consumerEntryModule.runtimePath === "app.js" && example.loading.iconPath === "icon.svg" && example.loading.iconRuntimePath === "icon.svg", "example uses its locked schema and explicit runtime/consumer/icon paths");
-assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.5", "release identity");
+assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.6", "release identity");
 assert(JSON.stringify(Object.keys(release.artifacts || {}).sort()) === JSON.stringify(expectedReleaseArtifacts), "exact release source artifact set");
 assert(release.artifacts["dist/milos-app-essentials.css"] === digest(css), "release CSS hash");
 assert(release.artifacts["dist/milos-app-essentials.js"] === digest(runtime), "release runtime hash");
@@ -172,13 +173,13 @@ assert(verifier.toString("utf8").includes("validateStoragePurposes") && verifier
 assert(verifier.toString("utf8").includes('width !== "32" || height !== "32"') && verifier.toString("utf8").includes("exactly 32") && !verifier.toString("utf8").includes('Number(attributeValue(loadingIcon'), "verifier requires exact raw 32px fallback dimensions");
 assert(verifier.toString("utf8").includes('attributeValue(slotIcons[0], "width") !== "38"') && verifier.toString("utf8").includes("exactly 38"), "verifier requires exact raw 38px Shell slot icon dimensions");
 assert(syncText.includes('execFileSync("git"') && syncText.includes("does not match --source-commit") && syncText.includes("release checksum mismatch"), "sync verifies Git-object and release provenance");
-assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 bis 1.1.4 auf 1.1.5") && readme.includes('width="32" height="32"') && readme.includes('width="38" height="38"') && readme.includes("privacy.permanentLink") && readme.includes("public-app-shell/v2") && readme.includes("runtimeBasePath") && readme.includes("Modul-URL im deklarierten Quell-`entryHtml`") && readme.includes("loading.iconRuntimePath") && readme.includes("image/svg+xml") && readme.includes("SHA-256") && readme.includes("Post-Build-/HTTP-Gate") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("provider-autocomplete-direct") && readme.includes("Nominatim") && readme.includes("Außenklick") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains 32px loader fallback, 38px Shell slot transition, verified privacy evidence, source/build entry boundaries, icon response QA, readiness, LF and both provider boundaries without the legacy event recipe");
+assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 bis 1.1.5 auf 1.1.6") && readme.includes("redundant erneut in `input.value`") && readme.includes('width="32" height="32"') && readme.includes('width="38" height="38"') && readme.includes("privacy.permanentLink") && readme.includes("public-app-shell/v2") && readme.includes("runtimeBasePath") && readme.includes("Modul-URL im deklarierten Quell-`entryHtml`") && readme.includes("loading.iconRuntimePath") && readme.includes("image/svg+xml") && readme.includes("SHA-256") && readme.includes("Post-Build-/HTTP-Gate") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("provider-autocomplete-direct") && readme.includes("Nominatim") && readme.includes("Außenklick") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains native date segment preservation, 32px loader fallback, 38px Shell slot transition, verified privacy evidence, source/build entry boundaries, icon response QA, readiness, LF and both provider boundaries without the legacy event recipe");
 
 const lifecycleAssertions = await validateLifecycle(new URL("../dist/milos-app-essentials.js", import.meta.url));
 assert(lifecycleAssertions >= 27, "deterministic lifecycle, privacy, date and provider regressions");
 
 const fixture = await verifyEssentials(fixtureRoot, "essentials-manifest.json");
-assert(fixture.appKey === "reference-app" && fixture.version === "1.1.5", "reference fixture verifies");
+assert(fixture.appKey === "reference-app" && fixture.version === "1.1.6", "reference fixture verifies");
 const fixtureLock = await json("fixtures/reference-app/vendor/milosapps-essentials/v1/essentials-lock.json");
 assert(JSON.stringify(Object.keys(fixtureLock.artifacts || {}).sort()) === JSON.stringify(expectedConsumerArtifacts), "exact consumer lock artifact set");
 assert(fixtureLock.loadingIconRuntimePath === fixtureManifest.loading.iconRuntimePath, "loading icon runtime path is locked");

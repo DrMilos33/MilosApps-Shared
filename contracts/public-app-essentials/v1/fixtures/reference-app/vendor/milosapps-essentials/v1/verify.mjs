@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.5";
+const VERSION = "1.1.6";
 const PLACE_SUGGESTION_CAPABILITIES = new Set(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]);
 const SHELL_ID = "public-app-shell/v2";
 const SHELL_VERSION = "2.0.3";

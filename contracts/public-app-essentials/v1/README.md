@@ -1,6 +1,6 @@
 # public-app-essentials/v1
 
-Version `1.1.5` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
+Version `1.1.6` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
 MilosApps: einen begrenzten Startzustand, einen wahrheitsgemäßen
 Datenschutzhinweis, Teilen, Datumsauswahl und Ort-/Regionssuche. Der Vertrag ist
 frameworkneutral und dependency-frei. Er ersetzt weder
@@ -247,6 +247,14 @@ Der ISO-Wert `YYYY-MM-DD` wird pro Bedienänderung genau einmal als
 ausgegeben. Die App bleibt Eigentümerin von Fachgrenzen wie
 Zeitzone, historischer Gültigkeit und erlaubtem Zeitraum.
 
+Bei einer gültigen Änderung im nativen Datumsfeld übernimmt der Baustein den
+bereits normalisierten Wert, ohne ihn redundant erneut in `input.value` zu
+schreiben. Das erhält bei segmentierten nativen Date-Pickern die aktive
+Tag-/Monat-/Jahr-Auswahl während direkter Zifferneingabe. Ein externer
+Wertsetter, Jahressprung oder „Heute“ schreibt weiterhin genau dann in das
+native Feld, wenn sich der Zielwert tatsächlich unterscheidet; ungültige Werte
+werden unverändert auf den letzten gültigen Stand zurückgesetzt.
+
 Der Reflow richtet sich nach der tatsächlichen Komponentenbreite, nicht nur
 nach dem Browserfenster. Datum, Jahressprung und Heute überlappen deshalb auch
 in einer schmalen Seitenleiste nicht. Alle Ziele bleiben 44 px hoch; Selects
@@ -321,10 +329,10 @@ ihre veröffentlichten Limits bestimmt. Eine App darf das deshalb für ein
 entsprechend belegtes DEV verwenden, erhält dadurch aber keine pauschale
 Productionfreigabe. Das ist keine Rechtsberatung.
 
-## Migration von 1.0.0 bis 1.1.4 auf 1.1.5
+## Migration von 1.0.0 bis 1.1.5 auf 1.1.6
 
-1. `essentialsContract.version` auf `1.1.5` und `sharedCommit` auf den
-   unveränderlichen v1.1.5-Releasecommit setzen. `$schema` auf das vendorte
+1. `essentialsContract.version` auf `1.1.6` und `sharedCommit` auf den
+   unveränderlichen v1.1.6-Releasecommit setzen. `$schema` auf das vendorte
    Schema umstellen, `vendorDirectory` als Repositorypfad,
    `runtimeBasePath` als tatsächlich ausgelieferten URL-Basispfad und
    `consumerEntryModule` mit physischer Integrationsdatei plus exakter

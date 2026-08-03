@@ -87,6 +87,24 @@ function fakeNode(tagName = "div") {
   return node;
 }
 
+function trackValueAssignments(node) {
+  let value = String(node.value || "");
+  let assignments = 0;
+  Object.defineProperty(node, "value", {
+    configurable: true,
+    get() { return value; },
+    set(nextValue) {
+      assignments += 1;
+      value = String(nextValue);
+    }
+  });
+  return {
+    assignments: () => assignments,
+    reset() { assignments = 0; },
+    setFromNativeInput(nextValue) { value = String(nextValue); }
+  };
+}
+
 export async function validateLifecycle(runtimeUrl) {
   let assertions = 0;
   const assert = (condition, message) => {
@@ -263,17 +281,56 @@ export async function validateLifecycle(runtimeUrl) {
     assert(place.events.length === 0, "stale locate result cannot dispatch events");
 
     const datePicker = new MilosDatePicker();
-    datePicker.input = fakeNode();
-    datePicker.yearSelect = fakeNode();
-    datePicker.commit("2026-08-03");
-    assert(datePicker.events.filter(({ type }) => type === "change").length === 1, "date commit dispatches exactly one host change event");
-    assert(datePicker.events.filter(({ type }) => type === "milosapps:datechange").length === 1, "date commit dispatches exactly one semantic event");
-    datePicker.commit("");
-    assert(datePicker.value === "" && datePicker.input.value === "" && datePicker.yearSelect.value === "", "optional date can be cleared without stale state");
-    assert(datePicker.events.filter(({ type }) => type === "change").length === 2, "date clear dispatches exactly one replacement host event");
-    assert(datePicker.events.filter(({ type }) => type === "milosapps:datechange").at(-1)?.detail?.value === "", "date clear dispatches an empty semantic value");
-    datePicker.commit("2026-02-31");
-    assert(datePicker.value === "" && datePicker.input.value === "" && datePicker.events.filter(({ type }) => type === "change").length === 2, "impossible calendar dates are rejected without events");
+    datePicker.setAttribute("value", "2026-08-03");
+    datePicker.connectedCallback();
+    const dateInputAssignments = trackValueAssignments(datePicker.input);
+    const hostChangeCount = () => datePicker.events.filter(({ type }) => type === "change").length;
+    const semanticChangeCount = () => datePicker.events.filter(({ type }) => type === "milosapps:datechange").length;
+
+    dateInputAssignments.setFromNativeInput("2026-08-24");
+    datePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
+    assert(dateInputAssignments.assignments() === 0, "native date change preserves the active input segment by avoiding a redundant value assignment");
+    assert(datePicker.value === "2026-08-24" && datePicker.yearSelect.value === "2026", "native date change commits the already-normalized input value");
+    assert(hostChangeCount() === 1 && semanticChangeCount() === 1, "native date change dispatches exactly one host and semantic event");
+
+    datePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
+    assert(dateInputAssignments.assignments() === 0, "same-value native date change does not reassign the input value");
+    assert(hostChangeCount() === 1 && semanticChangeCount() === 1, "same-value native date change remains event-silent");
+
+    dateInputAssignments.reset();
+    datePicker.value = "2027-05-06";
+    assert(dateInputAssignments.assignments() === 1 && datePicker.input.value === "2027-05-06" && datePicker.yearSelect.value === "2027", "external date setter still writes a changed input value");
+
+    dateInputAssignments.reset();
+    datePicker.yearSelect.value = "2028";
+    datePicker.yearSelect.dispatchEvent({ type: "change", stopPropagation() {} });
+    assert(dateInputAssignments.assignments() === 1 && datePicker.value === "2028-05-06" && datePicker.input.value === "2028-05-06", "year jump still writes its changed date into the native input");
+
+    datePicker.currentValue = "2001-01-01";
+    dateInputAssignments.setFromNativeInput("2001-01-01");
+    datePicker.yearSelect.value = "2001";
+    dateInputAssignments.reset();
+    datePicker.todayButton.dispatchEvent({ type: "click" });
+    assert(dateInputAssignments.assignments() === 1 && datePicker.value === datePicker.input.value && datePicker.value !== "2001-01-01", "Today still writes its changed date into the native input");
+    assert(datePicker.yearSelect.value === datePicker.value.slice(0, 4), "Today keeps the year jump synchronized");
+
+    datePicker.currentValue = "2026-08-03";
+    dateInputAssignments.setFromNativeInput("2026-02-31");
+    datePicker.yearSelect.value = "2026";
+    dateInputAssignments.reset();
+    const eventsBeforeInvalid = datePicker.events.length;
+    datePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
+    assert(dateInputAssignments.assignments() === 1 && datePicker.input.value === "2026-08-03" && datePicker.value === "2026-08-03", "invalid native date still rolls back the input to the last valid value");
+    assert(datePicker.events.length === eventsBeforeInvalid, "invalid native date remains event-silent");
+
+    dateInputAssignments.setFromNativeInput("");
+    dateInputAssignments.reset();
+    const hostChangesBeforeClear = hostChangeCount();
+    const semanticChangesBeforeClear = semanticChangeCount();
+    datePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
+    assert(dateInputAssignments.assignments() === 0 && datePicker.value === "" && datePicker.input.value === "" && datePicker.yearSelect.value === "", "native date clear commits without redundantly reassigning the empty input");
+    assert(hostChangeCount() === hostChangesBeforeClear + 1 && semanticChangeCount() === semanticChangesBeforeClear + 1, "native date clear dispatches exactly one host and semantic event");
+    assert(datePicker.events.filter(({ type }) => type === "milosapps:datechange").at(-1)?.detail?.value === "", "native date clear dispatches an empty semantic value");
 
     const keyboardPlace = new MilosPlaceSearch();
     keyboardPlace.input = fakeNode();
@@ -458,7 +515,7 @@ export async function validateLifecycle(runtimeUrl) {
       }
     };
     const directEssentials = initMilosAppEssentials(directProviderConfig);
-    assert(directEssentials.version === "1.1.5", "runtime accepts the evidenced direct autocomplete capability");
+    assert(directEssentials.version === "1.1.6", "runtime accepts the evidenced direct autocomplete capability");
     let unknownCapabilityError;
     try {
       initMilosAppEssentials({

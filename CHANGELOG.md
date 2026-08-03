@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## public-app-essentials 1.1.6 – 2026-08-03
+
+- `MilosDatePicker` schreibt einen bereits normalisierten nativen Datumswert
+  nicht mehr redundant in `input.value` zurück. Dadurch bleibt die aktive
+  Tag-/Monat-/Jahr-Segmentauswahl bei direkter Zifferneingabe erhalten.
+- Externe Wertsetter, Jahressprung, „Heute“, ungültiger Rollback und Leeren
+  behalten ihr bisheriges Verhalten. Eine deterministische Setter-Regression
+  sichert diese Grenzen getrennt ab.
+- Loader, Privacy, Share, Place, Shell-Slot-Icon, CSP, MIME und alle
+  Productiongrenzen bleiben unverändert.
+
 ## public-app-essentials 1.1.5 – 2026-08-03
 
 - Das kritische CSS begrenzt das app-eigene Shell-Slot-SVG bereits bei noch
