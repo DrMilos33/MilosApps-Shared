@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "id": "public-app-essentials/v1",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "status": "stable",
   "purpose": "shared-startup-privacy-share-date-and-place-interactions",
   "delivery": {
@@ -11,6 +11,8 @@
     "crossRepositoryRuntimeImportAllowed": false,
     "lockRequired": true,
     "sha256Required": true,
+    "manifestSchemaLocked": true,
+    "sourceCommitProvenanceRequired": true,
     "runtimeDependency": false,
     "runtimeAssets": [
       {
@@ -65,7 +67,8 @@
       "storagePurposesMustBeStrictlyNecessary": true,
       "consentContractIncluded": false,
       "noCookiesBehavior": "no-banner-no-dismiss-state-persistent-consumer-info",
-      "essentialOnlyBehavior": "informational-dismissible-not-consent"
+      "essentialOnlyBehavior": "informational-dismissible-not-consent",
+      "dismissPersistence": "document-only"
     },
     "share": {
       "required": true,
@@ -82,6 +85,7 @@
       "optional": true,
       "implementation": "native-date-input-plus-year-jump",
       "isoValue": "YYYY-MM-DD",
+      "normalChangeEventsPerCommit": 1,
       "reflowBasis": "component-inline-size",
       "selectInlineEndSafeAreaRequired": true
     },
@@ -95,6 +99,8 @@
       "publicNominatimAutocompleteForbidden": true,
       "publicNominatimSubmitSearchAllowed": true,
       "defaultMode": "submit-only",
+      "selectedDisplayFields": ["name", "region", "country"],
+      "localeChangeInvalidatesPendingOperations": true,
       "suggestions": {
         "optional": true,
         "explicitCapabilityDeclarationRequired": true,
@@ -121,6 +127,9 @@
     "reducedMotionRequired": true,
     "strictSameOriginCspRequired": true,
     "externalRuntimeAssetsMustRemainExternalAfterBuild": true,
+    "themeColorTokensOnly": true,
+    "adaptiveThemeCustomPropertyPattern": "var(--[a-z0-9]+(?:-[a-z0-9]+)*)",
+    "commentMarkersDoNotCountAsIntegration": true,
     "desktopViewport": "1440x900",
     "mobileViewport": "390x844",
     "zoomViewport": "360x800@200%",

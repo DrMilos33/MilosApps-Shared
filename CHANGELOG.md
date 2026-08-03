@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## public-app-essentials 1.1.1 – 2026-08-03
+
+- Manifest-Schema, Sync und portabler Verifier erzwingen nun den verpflichtenden
+  Startup-Baustein, alle Pflicht-/Zusatzfeldgrenzen und sechs bytegelockte
+  Artefakte einschließlich des Schemas.
+- Sync gleicht Dist-, Schema- und Releasebytes mit dem angegebenen Git-Commit
+  ab; ein veränderter Shared-Arbeitsbaum kann keinen fremden Release-SHA mehr
+  behaupten. Theme-Tokens akzeptieren nur lokale CSS-Farbwerte.
+- `essential-only` schließt seinen Sachhinweis nur im aktuellen Dokument und
+  erzeugt keinen optionalen, nicht inventarisierten Komfortschlüssel.
+- Datum sendet je Bedienung nur ein normales `change`; Place korrigiert
+  initiales ArrowUp, Stale-Rejections, Locale-/Reconnect-Lebenszyklen und zeigt
+  nach Auswahl Name, Region und Land dauerhaft.
+- Der Verifier verlangt echte Link-/Script-/Markup-Integration; bloße Marker in
+  HTML- oder JavaScript-Kommentaren bestehen nicht mehr.
+
 ## public-app-essentials 1.1.0 – 2026-08-03
 
 - Datenschutzmodi präzisiert: `no-cookies` erzeugt weder Banner noch

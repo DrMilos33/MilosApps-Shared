@@ -14,6 +14,9 @@ function fakeNode() {
     disabled: false,
     isConnected: true,
     textContent: "",
+    value: "",
+    hidden: false,
+    children: [],
     attributes: new Map(),
     setAttribute(name, value) { this.attributes.set(name, String(value)); },
     removeAttribute(name) {
@@ -22,7 +25,9 @@ function fakeNode() {
         const key = name.slice(5).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
         delete this.dataset[key];
       }
-    }
+    },
+    replaceChildren(...nodes) { this.children = nodes; },
+    scrollIntoView() {}
   };
 }
 
@@ -46,8 +51,11 @@ export async function validateLifecycle(runtimeUrl) {
       this.isConnected = true;
       this.nodes = new Map();
       this.events = [];
+      this.attributes = new Map();
     }
     hasAttribute() { return false; }
+    getAttribute() { return null; }
+    setAttribute(name, value) { this.attributes.set(name, String(value)); }
     querySelector(selector) { return this.nodes.get(selector) || null; }
     dispatchEvent(event) { this.events.push(event); return true; }
   }
@@ -65,7 +73,7 @@ export async function validateLifecycle(runtimeUrl) {
       value: { share: () => nativeShare.promise }
     });
 
-    const { MilosPlaceSearch, MilosShareButton } = await import(`${runtimeUrl.href}?lifecycle-regression=1`);
+    const { MilosDatePicker, MilosPlaceSearch, MilosShareButton } = await import(`${runtimeUrl.href}?lifecycle-regression=1`);
 
     const share = new MilosShareButton();
     share.dataset.milosReady = "true";
@@ -138,6 +146,54 @@ export async function validateLifecycle(runtimeUrl) {
     assert(place.input.value === "new input" && place.status.textContent === "new status", "abort-ignoring locate result cannot mutate reattached UI");
     assert(place.searchButton.disabled && place.locateButton.disabled, "stale locate finally cannot release new busy UI");
     assert(place.events.length === 0, "stale locate result cannot dispatch events");
+
+    const datePicker = new MilosDatePicker();
+    datePicker.input = fakeNode();
+    datePicker.yearSelect = fakeNode();
+    datePicker.commit("2026-08-03");
+    assert(datePicker.events.filter(({ type }) => type === "change").length === 1, "date commit dispatches exactly one host change event");
+    assert(datePicker.events.filter(({ type }) => type === "milosapps:datechange").length === 1, "date commit dispatches exactly one semantic event");
+
+    const keyboardPlace = new MilosPlaceSearch();
+    keyboardPlace.input = fakeNode();
+    keyboardPlace.resultsElement = fakeNode();
+    keyboardPlace.resultsElement.children = [fakeNode(), fakeNode(), fakeNode()];
+    keyboardPlace.results = [{}, {}, {}];
+    keyboardPlace.activeIndex = -1;
+    keyboardPlace.onKeyDown({ key: "ArrowUp", preventDefault() {} });
+    assert(keyboardPlace.activeIndex === 2, "initial ArrowUp selects the final place result");
+
+    const staleSuggestion = deferred();
+    const suggestionsPlace = new MilosPlaceSearch();
+    suggestionsPlace.isConnected = true;
+    suggestionsPlace.connectionEpoch = 1;
+    suggestionsPlace.input = fakeNode();
+    suggestionsPlace.input.value = "Berlin";
+    suggestionsPlace.searchButton = fakeNode();
+    suggestionsPlace.locateButton = fakeNode();
+    suggestionsPlace.status = fakeNode();
+    suggestionsPlace.resultsElement = fakeNode();
+    suggestionsPlace.busyOwners = new Set();
+    suggestionsPlace.suggestionRequestId = 0;
+    suggestionsPlace.searchRequestId = 0;
+    suggestionsPlace.locateRequestId = 0;
+    suggestionsPlace.suggestionsProvider = () => staleSuggestion.promise;
+    const oldSuggestion = suggestionsPlace.runSuggestions("Berlin", 0, 1);
+    suggestionsPlace.input.value = "Paris";
+    suggestionsPlace.status.textContent = "new status";
+    staleSuggestion.reject(new Error("old request failed"));
+    await oldSuggestion;
+    assert(suggestionsPlace.status.textContent === "new status", "stale suggestion rejection cannot overwrite a new programmatic query");
+
+    const selectedPlace = new MilosPlaceSearch();
+    selectedPlace.input = fakeNode();
+    selectedPlace.renderResults = () => {};
+    selectedPlace.clearOperationStatus = () => {};
+    selectedPlace.cancelSuggestions = () => {};
+    selectedPlace.cancelSearch = () => {};
+    selectedPlace.cancelLocate = () => {};
+    selectedPlace.select({ name: "London", region: "England", country: "United Kingdom" });
+    assert(selectedPlace.input.value === "London, England, United Kingdom", "selected place keeps name, region and country visible");
   } finally {
     if (original.HTMLElement === undefined) delete globalThis.HTMLElement;
     else globalThis.HTMLElement = original.HTMLElement;

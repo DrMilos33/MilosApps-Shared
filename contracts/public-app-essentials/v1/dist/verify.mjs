@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.0";
+const VERSION = "1.1.1";
 const CONSUMERS = new Set([
   "portal",
   "noodle-calculator",
@@ -20,11 +20,115 @@ const ARTIFACTS = [
   "milos-app-essentials-theme.css",
   "milos-app-essentials.js",
   "bootstrap.js",
-  "verify.mjs"
+  "verify.mjs",
+  "essentials-manifest.schema.json"
 ];
 
 function fail(message) {
   throw new Error(`public-app-essentials/v1 verification failed: ${message}`);
+}
+
+function valueHasType(value, type) {
+  if (type === "null") return value === null;
+  if (type === "array") return Array.isArray(value);
+  if (type === "object") return value !== null && typeof value === "object" && !Array.isArray(value);
+  if (type === "integer") return Number.isInteger(value);
+  return typeof value === type;
+}
+
+export function schemaErrors(schema, value, location = "$", errors = []) {
+  if (!schema || typeof schema !== "object") return errors;
+  const types = Array.isArray(schema.type) ? schema.type : schema.type ? [schema.type] : [];
+  if (types.length && !types.some((type) => valueHasType(value, type))) {
+    errors.push(`${location}: expected ${types.join(" or ")}`);
+    return errors;
+  }
+  if (Object.hasOwn(schema, "const") && JSON.stringify(value) !== JSON.stringify(schema.const)) errors.push(`${location}: value differs from const`);
+  if (schema.enum && !schema.enum.some((candidate) => JSON.stringify(candidate) === JSON.stringify(value))) errors.push(`${location}: value is not in enum`);
+  if (typeof value === "string") {
+    if (schema.minLength !== undefined && value.length < schema.minLength) errors.push(`${location}: string is too short`);
+    if (schema.maxLength !== undefined && value.length > schema.maxLength) errors.push(`${location}: string is too long`);
+    if (schema.pattern && !new RegExp(schema.pattern).test(value)) errors.push(`${location}: pattern mismatch`);
+  }
+  if (typeof value === "number") {
+    if (schema.minimum !== undefined && value < schema.minimum) errors.push(`${location}: below minimum`);
+    if (schema.maximum !== undefined && value > schema.maximum) errors.push(`${location}: above maximum`);
+  }
+  if (Array.isArray(value)) {
+    if (schema.minItems !== undefined && value.length < schema.minItems) errors.push(`${location}: too few items`);
+    if (schema.maxItems !== undefined && value.length > schema.maxItems) errors.push(`${location}: too many items`);
+    if (schema.uniqueItems && new Set(value.map((item) => JSON.stringify(item))).size !== value.length) errors.push(`${location}: duplicate items`);
+    if (schema.items) value.forEach((item, index) => schemaErrors(schema.items, item, `${location}[${index}]`, errors));
+  }
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    for (const required of schema.required || []) if (!Object.hasOwn(value, required)) errors.push(`${location}.${required}: required property missing`);
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(value)) if (!Object.hasOwn(schema.properties || {}, key)) errors.push(`${location}.${key}: additional property`);
+    }
+    for (const [key, child] of Object.entries(schema.properties || {})) if (Object.hasOwn(value, key)) schemaErrors(child, value[key], `${location}.${key}`, errors);
+  }
+  for (const child of schema.allOf || []) schemaErrors(child, value, location, errors);
+  if (schema.if) {
+    const conditionalErrors = [];
+    schemaErrors(schema.if, value, location, conditionalErrors);
+    if (conditionalErrors.length === 0 && schema.then) schemaErrors(schema.then, value, location, errors);
+    if (conditionalErrors.length > 0 && schema.else) schemaErrors(schema.else, value, location, errors);
+  }
+  return errors;
+}
+
+function stripHtmlComments(value) {
+  return String(value).replace(/<!--[\s\S]*?-->/g, "");
+}
+
+function stripJavaScriptComments(value) {
+  const source = String(value);
+  let output = "";
+  let quote = "";
+  for (let index = 0; index < source.length; index += 1) {
+    const current = source[index];
+    const next = source[index + 1];
+    if (quote) {
+      output += current;
+      if (current === "\\") output += source[++index] || "";
+      else if (current === quote) quote = "";
+      continue;
+    }
+    if (current === '"' || current === "'" || current === "`") {
+      quote = current;
+      output += current;
+      continue;
+    }
+    if (current === "/" && next === "/") {
+      while (index < source.length && source[index] !== "\n") index += 1;
+      output += "\n";
+      continue;
+    }
+    if (current === "/" && next === "*") {
+      index += 2;
+      while (index < source.length && !(source[index] === "*" && source[index + 1] === "/")) index += 1;
+      index += 1;
+      continue;
+    }
+    output += current;
+  }
+  return output;
+}
+
+function htmlTags(source, tagName) {
+  return [...source.matchAll(new RegExp(`<${tagName}\\b[^>]*>`, "gi"))].map((match) => ({ source: match[0], index: match.index }));
+}
+
+function attributeValue(tag, attribute) {
+  return tag.match(new RegExp(`\\b${attribute}\\s*=\\s*["']([^"']*)["']`, "i"))?.[1] ?? null;
+}
+
+function hasAttribute(tag, attribute) {
+  return new RegExp(`(?:\\s|^)${attribute}(?:\\s*=|\\s|/?>)`, "i").test(tag);
+}
+
+function pathEndsWith(value, expected) {
+  return String(value || "").split(/[?#]/, 1)[0].replaceAll("\\", "/").endsWith(expected);
 }
 
 function parseArgs(argv) {
@@ -81,6 +185,19 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   const appRoot = path.resolve(appRootInput);
   const manifestPath = inside(appRoot, path.resolve(appRoot, manifestInput), "manifest");
   const manifest = JSON.parse((await requiredFile(manifestPath, "manifest")).toString("utf8"));
+  if (typeof manifest.essentialsContract?.vendorDirectory !== "string") fail("vendor directory is required");
+  const vendorRoot = inside(appRoot, path.resolve(appRoot, manifest.essentialsContract.vendorDirectory), "vendor directory");
+  const lock = JSON.parse((await requiredFile(path.join(vendorRoot, "essentials-lock.json"), "essentials lock")).toString("utf8"));
+  if (lock.contract !== ID || lock.version !== VERSION) fail("lock contract/version mismatch");
+  if (lock.sharedCommit !== manifest.essentialsContract.sharedCommit) fail("lock/shared commit mismatch");
+  if (lock.appKey !== manifest.appKey) fail("lock/app key mismatch");
+  for (const artifact of ARTIFACTS) {
+    const content = await requiredFile(path.join(vendorRoot, artifact), artifact);
+    if (sha256(content) !== lock.artifacts?.[artifact]) fail(`${artifact} checksum mismatch`);
+  }
+  const manifestSchema = JSON.parse((await requiredFile(path.join(vendorRoot, "essentials-manifest.schema.json"), "manifest schema")).toString("utf8"));
+  const manifestErrors = schemaErrors(manifestSchema, manifest);
+  if (manifestErrors.length) fail(`manifest schema: ${manifestErrors.join("; ")}`);
   if (manifest.public !== true || manifest.loginRequired !== false) fail("consumer must be a public no-login surface");
   const fixture = manifest.appKey === "reference-app" && /^0+$/.test(manifest.essentialsContract?.sharedCommit || "");
   if (!fixture && !CONSUMERS.has(manifest.appKey)) fail("appKey is not an eligible consumer");
@@ -92,6 +209,7 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   if (manifest.privacy?.optionalTracking !== false) fail("optional tracking is forbidden");
   validateStoragePurposes(manifest);
   if (!/^https:\/\//.test(manifest.privacy?.privacyUrl || "")) fail("privacy URL must use HTTPS");
+  if (manifest.features?.startup !== true) fail("startup is required for public apps");
   if (manifest.features?.share !== true) fail("share is required");
   if (manifest.privacy?.mode === "no-cookies" && manifest.features?.privacyNotice !== false) fail("no-cookies requires privacyNotice=false");
   if (manifest.privacy?.mode === "essential-only" && manifest.features?.privacyNotice !== true) fail("essential-only requires privacyNotice=true");
@@ -107,35 +225,31 @@ export async function verifyEssentials(appRootInput, manifestInput) {
     fail("disabled place suggestions must remain submit-only without provider evidence");
   }
 
-  const vendorRoot = inside(appRoot, path.resolve(appRoot, manifest.essentialsContract.vendorDirectory), "vendor directory");
-  const lock = JSON.parse((await requiredFile(path.join(vendorRoot, "essentials-lock.json"), "essentials lock")).toString("utf8"));
-  if (lock.contract !== ID || lock.version !== VERSION) fail("lock contract/version mismatch");
-  if (lock.sharedCommit !== manifest.essentialsContract.sharedCommit) fail("lock/shared commit mismatch");
-  if (lock.appKey !== manifest.appKey) fail("lock/app key mismatch");
-  for (const artifact of ARTIFACTS) {
-    const content = await requiredFile(path.join(vendorRoot, artifact), artifact);
-    if (sha256(content) !== lock.artifacts?.[artifact]) fail(`${artifact} checksum mismatch`);
-  }
-
   const entryPath = inside(appRoot, path.resolve(appRoot, manifest.entryHtml), "entry HTML");
-  const entry = (await requiredFile(entryPath, "entry HTML")).toString("utf8");
+  const entry = stripHtmlComments((await requiredFile(entryPath, "entry HTML")).toString("utf8"));
   const vendorWeb = normalizedWebPath(manifest.essentialsContract.vendorDirectory);
   const baseCss = `${vendorWeb}/milos-app-essentials.css`;
   const themeCss = `${vendorWeb}/milos-app-essentials-theme.css`;
   const bootstrap = `${vendorWeb}/bootstrap.js`;
-  if (!entry.includes(baseCss) || !entry.includes(themeCss)) fail("entry HTML must load both local essentials stylesheets");
-  if (!entry.includes(bootstrap)) fail("entry HTML must load the local generated bootstrap");
-  const firstModule = entry.search(/<script\b[^>]*type=["']module["']/i);
-  if (firstModule >= 0 && (entry.indexOf(baseCss) > firstModule || entry.indexOf(themeCss) > firstModule)) fail("critical stylesheets must load before module scripts");
+  const stylesheetLinks = htmlTags(entry, "link").filter(({ source }) => (attributeValue(source, "rel") || "").toLowerCase().split(/\s+/).includes("stylesheet"));
+  const baseLink = stylesheetLinks.find(({ source }) => pathEndsWith(attributeValue(source, "href"), baseCss));
+  const themeLink = stylesheetLinks.find(({ source }) => pathEndsWith(attributeValue(source, "href"), themeCss));
+  if (!baseLink || !themeLink) fail("entry HTML must load both local essentials stylesheets as link elements");
+  const moduleScripts = htmlTags(entry, "script").filter(({ source }) => (attributeValue(source, "type") || "").toLowerCase() === "module");
+  const bootstrapScript = moduleScripts.find(({ source }) => pathEndsWith(attributeValue(source, "src"), bootstrap));
+  if (!bootstrapScript) fail("entry HTML must load the local generated bootstrap as a module script");
+  const firstModule = moduleScripts[0]?.index ?? -1;
+  if (firstModule >= 0 && (baseLink.index > firstModule || themeLink.index > firstModule)) fail("critical stylesheets must load before module scripts");
   if (/https?:[^"']+milos-app-essentials/i.test(entry)) fail("remote essentials runtime is forbidden");
   if (/data:text\/(?:css|javascript)/i.test(entry)) fail("inlined data runtime is forbidden");
 
   const integrationSources = [];
   for (const relative of manifest.integrationFiles || []) {
     const file = inside(appRoot, path.resolve(appRoot, relative), "integration file");
-    integrationSources.push((await requiredFile(file, "integration file")).toString("utf8"));
+    const raw = (await requiredFile(file, "integration file")).toString("utf8");
+    integrationSources.push(stripJavaScriptComments(stripHtmlComments(raw)));
   }
-  const allSources = [entry, ...integrationSources].join("\n");
+  const allSources = [stripJavaScriptComments(entry), ...integrationSources].join("\n");
   if (!/<milos-share-button(?:\s|>)/i.test(allSources)) fail("shared share control is required");
   if (manifest.privacy?.mode === "no-cookies") {
     if (!/data-milos-privacy-info/i.test(allSources) || !allSources.includes(manifest.privacy.privacyUrl)) fail("no-cookies requires persistent consumer-owned privacy information");
@@ -146,18 +260,16 @@ export async function verifyEssentials(appRootInput, manifestInput) {
     if (!/setSuggestionsProvider\s*\(/.test(allSources)) fail("enabled place suggestions require an app-owned suggestions provider");
   }
 
-  if (manifest.features?.startup) {
-    for (const marker of ["data-milos-app-loading", "data-milos-loading-card", "data-milos-loading-icon", "data-milos-loading-title", "data-milos-loading-message", "data-milos-loading-progress"]) {
-      if (!entry.includes(marker)) fail(`startup marker is missing: ${marker}`);
-    }
-    const iconPath = normalizedWebPath(manifest.loading?.iconPath);
-    const imagePattern = new RegExp(`<img[^>]+data-milos-loading-icon[^>]+src=["'](?:\\./)?${iconPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*>`, "i");
-    const reverseImagePattern = new RegExp(`<img[^>]+src=["'](?:\\./)?${iconPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]+data-milos-loading-icon[^>]*>`, "i");
-    const match = entry.match(imagePattern)?.[0] || entry.match(reverseImagePattern)?.[0];
-    if (!match) fail("loading icon must use the app-owned manifest iconPath");
-    if (!/\bwidth=["'](?:[1-4]?\d|5[0-6])["']/i.test(match) || !/\bheight=["'](?:[1-4]?\d|5[0-6])["']/i.test(match)) fail("loading icon needs explicit width/height no larger than 56");
-    if (!/(?:milosapps:ready|markMilosAppReady)/.test(allSources)) fail("app must explicitly signal readiness");
+  for (const marker of ["data-milos-app-loading", "data-milos-loading-card", "data-milos-loading-icon", "data-milos-loading-title", "data-milos-loading-message", "data-milos-loading-progress"]) {
+    if (!new RegExp(`<[a-z][^>]*\\s${marker}(?:\\s*=|\\s|/?>)`, "i").test(entry)) fail(`startup marker is missing: ${marker}`);
   }
+  const iconPath = normalizedWebPath(manifest.loading?.iconPath);
+  const loadingIcon = htmlTags(entry, "img").map(({ source }) => source).find((source) => hasAttribute(source, "data-milos-loading-icon") && pathEndsWith(attributeValue(source, "src"), iconPath));
+  if (!loadingIcon) fail("loading icon must use the app-owned manifest iconPath");
+  const width = Number(attributeValue(loadingIcon, "width"));
+  const height = Number(attributeValue(loadingIcon, "height"));
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 56 || height > 56) fail("loading icon needs explicit width/height no larger than 56");
+  if (!/markMilosAppReady\s*\(|(?:CustomEvent|Event)\s*\(\s*["']milosapps:ready["']/i.test(allSources)) fail("app must explicitly signal readiness");
 
   return Object.freeze({ appKey: manifest.appKey, version: VERSION, vendorRoot, features: Object.freeze({ ...manifest.features }) });
 }

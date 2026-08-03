@@ -1,10 +1,11 @@
 {
   "id": "public-app-essentials/v1",
-  "version": "1.1.0",
-  "tag": "public-app-essentials-v1.1.0",
+  "version": "1.1.1",
+  "tag": "public-app-essentials-v1.1.1",
   "artifacts": {
     "dist/milos-app-essentials.css": "sha256:4854809f96bc3965daf97aa041223a9068129d67ae6d3f1637262008143bde1e",
-    "dist/milos-app-essentials.js": "sha256:e0f0c811d87ba36034b62535ab69f5048ed30d553dac18cd90c17fa10bad8c67",
-    "dist/verify.mjs": "sha256:6e55e2b802805fc3f95a5bec358ec461af1d4d76c4338d1ec2250e01092f0281"
+    "dist/milos-app-essentials.js": "sha256:c7f0788ccffa2173630b053f5dd6e2d5fc4560e62d554c64ffbfff7cabda8322",
+    "dist/verify.mjs": "sha256:eac2a701cb6c07edefbb21f56ba2b2be8e0863f12e0deeef70317e602dab2f1a",
+    "essentials-manifest.schema.json": "sha256:d2dd2e173fb95d57a28e8a02eba9884b5ee9f9319ed4b306f73ed8dd61c105b1"
   }
 }

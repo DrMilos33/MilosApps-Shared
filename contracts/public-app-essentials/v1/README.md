@@ -1,6 +1,6 @@
 # public-app-essentials/v1
 
-Version `1.1.0` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
+Version `1.1.1` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
 MilosApps: einen begrenzten Startzustand, einen wahrheitsgemäßen
 Datenschutzhinweis, Teilen, Datumsauswahl und Ort-/Regionssuche. Der Vertrag ist
 frameworkneutral und dependency-frei. Er ersetzt weder
@@ -10,13 +10,20 @@ frameworkneutral und dependency-frei. Er ersetzt weder
 
 Jede App übernimmt eine feste Shared-Revision mit `tools/sync.mjs` in ihr
 eigenes Repository. Es gibt kein CDN und keinen Laufzeitimport aus dem
-Shared-Repository. Fünf Dateien werden gemeinsam gelockt:
+Shared-Repository. Sechs Dateien werden gemeinsam gelockt:
 
 - `milos-app-essentials.css`
 - `milos-app-essentials-theme.css`
 - `milos-app-essentials.js`
 - `bootstrap.js`
 - `verify.mjs`
+- `essentials-manifest.schema.json`
+
+Der Sync liest diese Bytes nur dann ein, wenn sie bytegleich im angegebenen
+Shared-Commit liegen und dessen `release.json`-Prüfsummen erfüllen. Ein
+veränderter Arbeitsbaum kann deshalb keinen Lock unter fremdem Release-SHA
+erzeugen. Manifest-Schema und portabler Verifier lehnen fehlende Pflichtfelder,
+zusätzliche Felder und `startup=false` fail-closed ab.
 
 Die vier Browserartefakte müssen nach dem Verbraucher-Build weiterhin als
 Same-Origin-Dateien vorliegen. JavaScript wird als
@@ -96,13 +103,14 @@ benötigt einen künftigen, getrennten Consent-Vertrag; v1.1 enthält keinen
 solchen Vertrag. Bei `usesLocalStorage=false` muss `storagePurposes` leer sein.
 Diese technische Produktgrenze ist keine Rechtsberatung.
 
-Nur `essential-only` darf den geschlossenen Informationszustand als lokalen
-Komfort speichern. `no-cookies` erzeugt dafür ausdrücklich keinen Schlüssel.
-Nur bei deklariertem `usesLocalStorage=true` entfernt die Runtime beim ersten
+Auch `essential-only` speichert das Schließen nicht: Der kompakte Sachhinweis
+wird nur für das aktuelle Dokument entfernt und kann beim nächsten Aufruf
+erneut erscheinen. Damit erzeugt der Shared-Baustein keinen optionalen
+Komfortschlüssel. Nur bei deklariertem `usesLocalStorage=true` entfernt die Runtime beim ersten
 Start von v1.1 ausschließlich den veralteten app-eigenen Schlüssel
 `milosapps.<appKey>.privacyNotice.v1`. Bei `usesLocalStorage=false` greift die
 Runtime nicht auf Web Storage zu. Fremde App-Keys, andere lokale Einstellungen
-und der neue Essential-Hinweiszustand bleiben unangetastet.
+und alle fachlichen App-Daten bleiben unangetastet.
 
 ## Teilen
 
@@ -137,8 +145,9 @@ Darstellung und Ereignis vereinheitlicht werden.
   label-de="Datum" label-en="Date"></milos-date-picker>
 ```
 
-Der ISO-Wert `YYYY-MM-DD` wird als `milosapps:datechange` und normales
-`change`-Ereignis ausgegeben. Die App bleibt Eigentümerin von Fachgrenzen wie
+Der ISO-Wert `YYYY-MM-DD` wird pro Bedienänderung genau einmal als
+`milosapps:datechange` und genau einmal als normales `change`-Ereignis
+ausgegeben. Die App bleibt Eigentümerin von Fachgrenzen wie
 Zeitzone, historischer Gültigkeit und erlaubtem Zeitraum.
 
 Der Reflow richtet sich nach der tatsächlichen Komponentenbreite, nicht nur
@@ -177,7 +186,9 @@ app-eigenen Nachweis und die Integration registriert ausdrücklich
 `setSuggestionsProvider(...)`.
 
 Der Baustein übernimmt Debounce, Abbruch vorheriger Anfragen, Unterdrückung
-veralteter Antworten und Tastaturführung. Provider, Rate-Limit, Cache,
+veralteter Antworten und Tastaturführung. Ein Localewechsel bricht alte
+Provideroperationen ab; nach Auswahl bleiben Name, Region und Land sichtbar.
+Provider, Rate-Limit, Cache,
 Attribution und Zeitzone bleiben App-Eigentum. Direktes Autocomplete gegen
 `nominatim.openstreetmap.org` bleibt verboten; öffentliches Nominatim darf in
 derselben App aber weiterhin für eine explizit abgeschickte `setSearchProvider`-
@@ -185,10 +196,10 @@ Suche vorkommen. Deshalb prüft der Verifier die separate Suggestions-
 Capability, deren Evidenzdatei und `setSuggestionsProvider(...)`, nicht ein
 pauschales Hostwort-Verbot über sämtlichen App-Code.
 
-## Migration von 1.0.0 auf 1.1.0
+## Migration von 1.0.0 oder 1.1.0 auf 1.1.1
 
-1. `essentialsContract.version` auf `1.1.0` und `sharedCommit` auf den
-   unveränderlichen v1.1-Releasecommit setzen; danach alle fünf Artefakte neu
+1. `essentialsContract.version` auf `1.1.1` und `sharedCommit` auf den
+   unveränderlichen v1.1.1-Releasecommit setzen; danach alle sechs Artefakte neu
    synchronisieren und locken.
 2. `features.placeSuggestions` ergänzen. Der sichere Standard ist:
    `enabled=false`, `minChars=3`, `debounceMs=350`,
@@ -201,13 +212,20 @@ pauschales Hostwort-Verbot über sämtlichen App-Code.
    deklarieren; optionale Zwecke sind in v1.1 nicht zulässig. Bei
    `usesLocalStorage=false` bleibt die Liste leer.
 5. Bei `privacy.mode="essential-only"` `features.privacyNotice=true` behalten;
-   Texte dürfen den Sachhinweis nicht als Einwilligung darstellen.
+   Texte dürfen den Sachhinweis nicht als Einwilligung darstellen. Einen
+   Dismiss-Key gibt es nicht mehr; die Schließaktion gilt nur im Dokument.
 6. Falls Vorschläge fachlich nötig sind: app-eigenen Autocomplete-Proxy
    nachweisen, Evidenzdatei eintragen, `consumer-autocomplete-proxy` deklarieren
    und separat `setSuggestionsProvider(...)` registrieren. Der normale
    `setSearchProvider(...)` bleibt die explizite Submit-Suche.
-7. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
-   Escape/Abort/Stale-Result und Disconnect-Cleanup in der Verbraucher-
+7. `features.startup=true` beibehalten. Das Schema ist nun selbst Teil des
+   Locks; Themewerte sind ausschließlich lokale CSS-Farben oder eng benannte
+   app-eigene Custom Properties der Form `var(--token-name)`. Fallbacks,
+   `url()`-Assets und beliebige CSS-Ausdrücke bleiben verboten. So darf eine
+   App ihr geprüftes Hell-/Dunkel-Theme weiterverwenden, ohne fremde Ressourcen
+   oder Deklarationen in das generierte Theme einzuschleusen.
+8. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
+   Escape/Abort/Stale-Result, Localewechsel und Disconnect-Cleanup in der Verbraucher-
    Browsermatrix prüfen.
 
 Die Runtime entfernt bei der Migration nur
