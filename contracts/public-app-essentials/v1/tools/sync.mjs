@@ -68,6 +68,22 @@ function safeThemeValue(value, key) {
   return value.trim();
 }
 
+function validateStoragePurposes(manifest) {
+  const purposes = manifest.privacy?.storagePurposes;
+  if (!Array.isArray(purposes)) fail("privacy.storagePurposes is required");
+  if (manifest.privacy?.usesLocalStorage === true && purposes.length === 0) fail("usesLocalStorage=true requires at least one storage purpose");
+  if (manifest.privacy?.usesLocalStorage !== true && purposes.length > 0) fail("storage purposes require usesLocalStorage=true");
+  const keys = new Set();
+  for (const purpose of purposes) {
+    if (typeof purpose?.key !== "string" || !purpose.key.startsWith(`milosapps.${manifest.appKey}.`)) fail("storage purpose key must use the app namespace");
+    if (keys.has(purpose.key)) fail("storage purpose keys must be unique");
+    keys.add(purpose.key);
+    if (typeof purpose.purpose !== "string" || !purpose.purpose.trim()) fail("storage purpose requires a non-empty purpose");
+    if (!["session", "bounded", "until-user-clears"].includes(purpose.lifetime)) fail("storage purpose requires a supported lifetime");
+    if (purpose.strictlyNecessary !== true) fail("optional device storage is forbidden without a separate consent contract");
+  }
+}
+
 function validateManifest(manifest, sourceCommit, fixture) {
   if (manifest.public !== true || manifest.loginRequired !== false) fail("only public no-login surfaces are consumers");
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manifest.appKey || "")) fail("invalid appKey");
@@ -83,6 +99,7 @@ function validateManifest(manifest, sourceCommit, fixture) {
   if (!Array.isArray(manifest.integrationFiles) || manifest.integrationFiles.length === 0) fail("integrationFiles are required");
   if (manifest.privacy?.mode !== "no-cookies" && manifest.privacy?.mode !== "essential-only") fail("unsupported privacy mode");
   if (manifest.privacy?.optionalTracking !== false) fail("optional tracking is forbidden");
+  validateStoragePurposes(manifest);
   if (!/^https:\/\//.test(manifest.privacy?.privacyUrl || "")) fail("privacyUrl must use HTTPS");
   if (manifest.features?.share !== true) fail("share is required");
   if (manifest.privacy.mode === "no-cookies" && manifest.features?.privacyNotice !== false) fail("no-cookies requires privacyNotice=false");

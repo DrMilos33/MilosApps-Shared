@@ -41,10 +41,25 @@
     "privacy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "usesLocalStorage", "optionalTracking", "privacyUrl"],
+      "required": ["mode", "usesLocalStorage", "storagePurposes", "optionalTracking", "privacyUrl"],
       "properties": {
         "mode": { "enum": ["no-cookies", "essential-only"] },
         "usesLocalStorage": { "type": "boolean" },
+        "storagePurposes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "purpose", "lifetime", "strictlyNecessary"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "purpose": { "type": "string", "minLength": 1 },
+              "lifetime": { "enum": ["session", "bounded", "until-user-clears"] },
+              "strictlyNecessary": { "const": true }
+            }
+          }
+        },
         "optionalTracking": { "const": false },
         "privacyUrl": { "type": "string", "pattern": "^https://" }
       }
@@ -148,6 +163,14 @@
     {
       "if": { "properties": { "privacy": { "properties": { "mode": { "const": "essential-only" } } } } },
       "then": { "properties": { "features": { "properties": { "privacyNotice": { "const": true } } } } }
+    },
+    {
+      "if": { "properties": { "privacy": { "properties": { "usesLocalStorage": { "const": true } } } } },
+      "then": { "properties": { "privacy": { "properties": { "storagePurposes": { "minItems": 1 } } } } }
+    },
+    {
+      "if": { "properties": { "privacy": { "properties": { "usesLocalStorage": { "const": false } } } } },
+      "then": { "properties": { "privacy": { "properties": { "storagePurposes": { "maxItems": 0 } } } } }
     }
   ]
 }

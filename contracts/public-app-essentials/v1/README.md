@@ -77,10 +77,11 @@ Deshalb erzeugt v1.1 **kein Einwilligungsbanner mit wirkungslosen
 „Akzeptieren/Ablehnen“-Schaltflächen** und simuliert keine optionalen Cookies.
 Das Verhalten folgt der im Manifest belegten technischen Realität:
 
-- `no-cookies`: kein Banner und kein gemeinsamer Dismiss-/Consent-Zustand. Die
-  App hält ihre wahrheitsgemäße Datenschutzinformation dauerhaft erreichbar,
-  markiert den Link mit `data-milos-privacy-info` und nennt dort optionale
-  lokale Einstellungen.
+- `no-cookies`: kein Banner und kein gemeinsamer Dismiss-/Consent-Zustand. Das
+  gilt nur, wenn die App gar nicht auf das Endgerät speichert oder jeden Zugriff
+  im Manifest zweckweise als technisch unbedingt erforderlich nachweist. Die
+  App hält ihre wahrheitsgemäße Datenschutzinformation dauerhaft erreichbar
+  und markiert den Link mit `data-milos-privacy-info`.
 - `essential-only`: ein kompakter Sachhinweis zu technisch notwendigen Cookies,
   kein Einwilligungsdialog. Die einzige Aktion schließt den Hinweis; sie heißt
   weder „Akzeptieren“ noch „Verstanden“. Datenschutz bleibt zusätzlich über
@@ -88,12 +89,20 @@ Das Verhalten folgt der im Manifest belegten technischen Realität:
 - `optionalTracking` muss `false` sein. Ein späteres Analyseprodukt benötigt
   einen neuen geprüften Consent-Vertrag und ist nicht durch v1 freigegeben.
 
+Bei `usesLocalStorage=true` ist `privacy.storagePurposes` nicht leer. Jeder
+Eintrag nennt den app-namensräumigen Schlüssel, Zweck, Lebensdauer und
+`strictlyNecessary=true`. Optionale Speicherung ist standardmäßig aus. Sie
+benötigt einen künftigen, getrennten Consent-Vertrag; v1.1 enthält keinen
+solchen Vertrag. Bei `usesLocalStorage=false` muss `storagePurposes` leer sein.
+Diese technische Produktgrenze ist keine Rechtsberatung.
+
 Nur `essential-only` darf den geschlossenen Informationszustand als lokalen
 Komfort speichern. `no-cookies` erzeugt dafür ausdrücklich keinen Schlüssel.
-Beim ersten Start von v1.1 entfernt die Runtime ausschließlich den veralteten
-app-eigenen Schlüssel `milosapps.<appKey>.privacyNotice.v1`. Fremde App-Keys,
-andere lokale Einstellungen und der neue Essential-Hinweiszustand bleiben
-unangetastet.
+Nur bei deklariertem `usesLocalStorage=true` entfernt die Runtime beim ersten
+Start von v1.1 ausschließlich den veralteten app-eigenen Schlüssel
+`milosapps.<appKey>.privacyNotice.v1`. Bei `usesLocalStorage=false` greift die
+Runtime nicht auf Web Storage zu. Fremde App-Keys, andere lokale Einstellungen
+und der neue Essential-Hinweiszustand bleiben unangetastet.
 
 ## Teilen
 
@@ -187,13 +196,17 @@ pauschales Hostwort-Verbot über sämtlichen App-Code.
 3. Bei `privacy.mode="no-cookies"` `features.privacyNotice=false` setzen und
    einen dauerhaft erreichbaren Link mit `data-milos-privacy-info` sowie der
    exakten `privacyUrl` ausgeben. Es entsteht kein Banner und kein Dismiss-Key.
-4. Bei `privacy.mode="essential-only"` `features.privacyNotice=true` behalten;
+4. `privacy.storagePurposes` ergänzen. Bei `usesLocalStorage=true` jeden
+   app-eigenen Schlüssel mit Zweck, Lebensdauer und `strictlyNecessary=true`
+   deklarieren; optionale Zwecke sind in v1.1 nicht zulässig. Bei
+   `usesLocalStorage=false` bleibt die Liste leer.
+5. Bei `privacy.mode="essential-only"` `features.privacyNotice=true` behalten;
    Texte dürfen den Sachhinweis nicht als Einwilligung darstellen.
-5. Falls Vorschläge fachlich nötig sind: app-eigenen Autocomplete-Proxy
+6. Falls Vorschläge fachlich nötig sind: app-eigenen Autocomplete-Proxy
    nachweisen, Evidenzdatei eintragen, `consumer-autocomplete-proxy` deklarieren
    und separat `setSuggestionsProvider(...)` registrieren. Der normale
    `setSearchProvider(...)` bleibt die explizite Submit-Suche.
-6. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
+7. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
    Escape/Abort/Stale-Result und Disconnect-Cleanup in der Verbraucher-
    Browsermatrix prüfen.
 
@@ -209,11 +222,14 @@ Essential-Hinweiszustand übernommen.
 - Datenschutzmodus in DE/EN: `no-cookies` ohne Banner/State mit dauerhaftem
   Link; `essential-only` als Sachhinweis ohne Consent-Sprache;
 - Teilen nativ sowie Clipboard-Fallback und abgebrochener Dialog; keine
-  Layoutverschiebung und keine Erfolgsmeldung nach nativem Teilen;
+  Layoutverschiebung und keine Erfolgsmeldung nach nativem Teilen; ausstehende
+  Promises dürfen nach Disconnect/Reconnect weder Status noch Events ändern;
 - Datum: native Eingabe, Jahressprung, Heute, Min/Max, DE/EN,
   komponentenbreitenabhängiger Reflow und freier Select-Pfeilbereich;
 - Ort: Stadt **und Region**, gleiches sichtbares Format, Enter/Schaltfläche,
   leere Treffer, Abbruch, Offline-/Netzfehler und optionaler Gerätestandort;
+  auch ein Abort ignorierender Provider darf nach neuer Eingabe, Auswahl,
+  Escape oder Disconnect/Reconnect keinen alten Zustand mehr einspielen;
 - optionale Vorschläge: Mindestzeichen, Debounce, Abort, veraltete Antworten,
   Tastatur sowie app-eigener Proxy-/Provider-Nachweis;
 - 1440 × 900, 390 × 844 und 360 × 800 bei 200 Prozent ohne horizontalen

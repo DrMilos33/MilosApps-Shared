@@ -4,7 +4,7 @@
   "tag": "public-app-essentials-v1.1.0",
   "artifacts": {
     "dist/milos-app-essentials.css": "sha256:4854809f96bc3965daf97aa041223a9068129d67ae6d3f1637262008143bde1e",
-    "dist/milos-app-essentials.js": "sha256:dafa4e12e8a994c009140d2e0b8a415563423ca902eaff5a4be5bcb399be583d",
-    "dist/verify.mjs": "sha256:ae3850deb9c2d9b123fc61cdc1790d03772d3b7226684ad31f2fed7f591031bf"
+    "dist/milos-app-essentials.js": "sha256:e0f0c811d87ba36034b62535ab69f5048ed30d553dac18cd90c17fa10bad8c67",
+    "dist/verify.mjs": "sha256:6e55e2b802805fc3f95a5bec358ec461af1d4d76c4338d1ec2250e01092f0281"
   }
 }

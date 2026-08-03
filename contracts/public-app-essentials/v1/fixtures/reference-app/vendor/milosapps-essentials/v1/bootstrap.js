@@ -16,6 +16,14 @@ export const milosAppEssentials = initMilosAppEssentials({
   "privacy": {
     "mode": "no-cookies",
     "usesLocalStorage": true,
+    "storagePurposes": [
+      {
+        "key": "milosapps.reference-app.locale",
+        "purpose": "Vom Nutzer gewählte Sprache lokal beibehalten",
+        "lifetime": "until-user-clears",
+        "strictlyNecessary": true
+      }
+    ],
     "optionalTracking": false,
     "privacyUrl": "https://dev.milos-apps.de/datenschutz"
   },

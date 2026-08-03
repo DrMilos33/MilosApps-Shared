@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { syncEssentials } from "./sync.mjs";
 import { verifyEssentials } from "../dist/verify.mjs";
+import { validateLifecycle } from "./lifecycle-regression.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = path.join(root, "fixtures", "reference-app");
@@ -53,6 +54,7 @@ assert(JSON.stringify([...contract.eligibleConsumers].sort()) === JSON.stringify
 assert(contract.excludedConsumers.includes("calendar") && contract.excludedClasses.includes("login-required-app"), "calendar and login apps excluded");
 assert(contract.modules.startup.iconMaxPx === 56 && contract.modules.startup.iconMaxMobilePx === 48, "bounded startup icon");
 assert(contract.modules.privacyNotice.fakeConsentForbidden && contract.modules.privacyNotice.optionalTrackingAllowed === false, "truthful privacy notice");
+assert(contract.modules.privacyNotice.optionalDeviceStorageAllowed === false && contract.modules.privacyNotice.storagePurposeDeclarationRequired && contract.modules.privacyNotice.storagePurposesMustBeStrictlyNecessary && contract.modules.privacyNotice.consentContractIncluded === false, "device storage is purpose-bound without implied consent");
 assert(contract.modules.privacyNotice.noCookiesBehavior === "no-banner-no-dismiss-state-persistent-consumer-info", "no-cookies has no banner or dismiss state");
 assert(contract.modules.privacyNotice.essentialOnlyBehavior === "informational-dismissible-not-consent", "essential-only is informational");
 assert(contract.modules.share.nativeApi === "navigator.share" && contract.modules.share.fallback === "clipboard", "share strategy");
@@ -69,6 +71,7 @@ assert(manifestSchema.properties.$schema.type === "string", "manifest permits sc
 assert(Object.keys(example).every((key) => Object.hasOwn(manifestSchema.properties, key)), "example uses schema properties only");
 assert(example.public === true && example.loginRequired === false && example.productionApproved === false, "example public DEV boundary");
 assert(example.privacy.optionalTracking === false && example.features.privacyNotice === false && example.features.share === true, "example no-cookies/share boundary");
+assert(example.privacy.usesLocalStorage && example.privacy.storagePurposes.length === 1 && example.privacy.storagePurposes[0].strictlyNecessary === true, "example declares necessary app storage purpose");
 assert(example.features.placeSuggestions.enabled === false && example.features.placeSuggestions.providerCapability === "submit-only", "example defaults to submit-only place search");
 assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.0", "release identity");
 assert(release.artifacts["dist/milos-app-essentials.css"] === digest(css), "release CSS hash");
@@ -98,7 +101,7 @@ const shareStatusCss = cssText.match(/\[data-milos-share-status\]\s*\{([^}]*)\}/
 assert(shareStatusCss.includes("position: fixed") && shareStatusCss.includes("safe-area-inset-left") && shareStatusCss.includes("safe-area-inset-bottom"), "share feedback is viewport-fixed and safe-area bounded");
 
 const runtimeText = runtime.toString("utf8");
-for (const marker of ["navigator.share", "navigator.clipboard", "milosapps:datechange", "milosapps:placechange", "milosapps:ready", "role\", \"combobox", "setSuggestionsProvider", "suggestionRequestId", "searchRequestId", "consumer-autocomplete-proxy", "disconnectedCallback", "storageRemove"] ) {
+for (const marker of ["navigator.share", "navigator.clipboard", "milosapps:datechange", "milosapps:placechange", "milosapps:ready", "role\", \"combobox", "setSuggestionsProvider", "suggestionRequestId", "searchRequestId", "locateRequestId", "connectionEpoch", "consumer-autocomplete-proxy", "disconnectedCallback", "storageRemove"] ) {
   assert(runtimeText.includes(marker), `runtime JS marker: ${marker}`);
 }
 assert(!runtimeText.includes("style.setProperty"), "runtime inline theme mutation forbidden");
@@ -107,11 +110,20 @@ assert(!runtimeText.includes("localeCopy().shared"), "native share success remai
 assert(runtimeText.indexOf('if (event.key === "Escape")') < runtimeText.indexOf("if (!this.results.length)"), "Escape cancels before empty-result early return");
 assert(/if \(event\.key === "Escape"\)[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);/.test(runtimeText), "Escape cancels both place request types");
 assert(/input\.addEventListener\("input"[\s\S]+?cancelSearch\(\);[\s\S]+?queueSuggestions\(\);/.test(runtimeText), "new input invalidates submit search before suggestions");
-assert(runtimeText.includes("signal.aborted || requestId !== this.searchRequestId || currentQuery !== query"), "submit search rejects stale results");
+assert(/input\.addEventListener\("input"[\s\S]+?cancelLocate\(\);[\s\S]+?cancelSearch\(\);/.test(runtimeText), "new input invalidates device location");
+assert(/async runSearch\(\)[\s\S]+?cancelLocate\(\);[\s\S]+?cancelSuggestions\(\);/.test(runtimeText), "explicit search invalidates device location");
+assert(/queueSuggestions\(\)[\s\S]+?cancelLocate\(\);[\s\S]+?cancelSuggestions\(\);/.test(runtimeText), "suggestion queue invalidates device location");
+assert(/select\(place\)[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);[\s\S]+?cancelLocate\(\);/.test(runtimeText), "place selection invalidates all place providers");
+assert(runtimeText.includes("isCurrentPlaceOperation") && runtimeText.includes("!signal?.aborted"), "place operations reject stale or aborted results");
 assert((runtimeText.match(/disconnectedCallback\(\)/g) || []).length >= 2, "share and place components clean up on disconnect");
-assert(runtimeText.includes('storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`)'), "legacy privacy key cleanup is app-namespaced");
+assert(runtimeText.includes('if (activeConfig.privacy.usesLocalStorage) storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`)'), "legacy privacy cleanup is app-namespaced and never accesses storage when disabled");
+assert(runtimeText.includes("normalizeStoragePurposes") && runtimeText.includes("Optional device storage is forbidden"), "runtime rejects undeclared or optional device storage");
 assert(verifier.toString("utf8").includes('manifest.privacy?.mode !== "no-cookies"'), "verifier enumerates privacy modes");
-assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 auf 1.1.0") && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot"), "README explains migration, privacy and provider boundaries");
+assert(verifier.toString("utf8").includes("validateStoragePurposes") && verifier.toString("utf8").includes("optional device storage is forbidden"), "verifier rejects optional device storage");
+assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 auf 1.1.0") && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung"), "README explains migration, privacy and provider boundaries");
+
+const lifecycleAssertions = await validateLifecycle(new URL("../dist/milos-app-essentials.js", import.meta.url));
+assert(lifecycleAssertions >= 12, "deterministic disconnect/reconnect lifecycle regressions");
 
 await syncEssentials({ "app-root": fixtureRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
 const fixture = await verifyEssentials(fixtureRoot, "essentials-manifest.json");
@@ -135,6 +147,26 @@ try {
     /optional tracking/,
     "optional tracking"
   );
+
+  const missingStoragePurposeRoot = path.join(tempRoot, "missing-storage-purpose");
+  await cp(fixtureRoot, missingStoragePurposeRoot, { recursive: true });
+  const missingStoragePurposePath = path.join(missingStoragePurposeRoot, "essentials-manifest.json");
+  const missingStoragePurposeManifest = JSON.parse(await readFile(missingStoragePurposePath, "utf8"));
+  missingStoragePurposeManifest.privacy.storagePurposes = [];
+  await writeFile(missingStoragePurposePath, `${JSON.stringify(missingStoragePurposeManifest, null, 2)}\n`, "utf8");
+  await expectFailure(
+    () => syncEssentials({ "app-root": missingStoragePurposeRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+    /requires at least one storage purpose/,
+    "missing necessary storage purpose"
+  );
+
+  const optionalStorageRoot = path.join(tempRoot, "optional-storage");
+  await cp(fixtureRoot, optionalStorageRoot, { recursive: true });
+  const optionalStoragePath = path.join(optionalStorageRoot, "essentials-manifest.json");
+  const optionalStorageManifest = JSON.parse(await readFile(optionalStoragePath, "utf8"));
+  optionalStorageManifest.privacy.storagePurposes[0].strictlyNecessary = false;
+  await writeFile(optionalStoragePath, `${JSON.stringify(optionalStorageManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(optionalStorageRoot, "essentials-manifest.json"), /optional device storage is forbidden/, "optional device storage");
 
   const invalidPrivacyModeRoot = path.join(tempRoot, "invalid-privacy-mode");
   await cp(fixtureRoot, invalidPrivacyModeRoot, { recursive: true });
