@@ -29,12 +29,14 @@ Integrationsverträge.
   allgemeiner, CSP-sicher vendorter Interaktionsbaukasten für einen begrenzten
   Loading Screen, wahrheitsgemäße Datenschutzmodi, layoutstabiles Teilen,
   komponentenbreitenabhängige Datumsauswahl und eine providerneutrale
-  Ort-/Regionssuche. Version 1.1.6 begrenzt das App-Ladeicon in Markup und CSS
+  Ort-/Regionssuche. Version 1.2.0 begrenzt das App-Ladeicon in Markup und CSS
   einheitlich auf 32 mal 32 Pixel und das app-eigene Shell-Slot-SVG in allen
   Übergangszuständen auf 38 mal 38 Pixel. Sie zeigt bei `no-cookies` keinen Banner,
   hält natives Teilen visuell still, erzwingt den Startup-Vertrag und
-  bewahrt bei nativer Datumseingabe die aktive Segmentauswahl und validiert
-  Schema, Release-Provenienz sowie Provider-Lebenszyklen fail-closed.
+  bewahrt den bisherigen nativen Datumsmodus und ergänzt für merkbare Daten
+  einen expliziten textbasierten Tag-Monat-Jahr-Modus mit separater nativer
+  Kalenderaktion. Schema, Release-Provenienz und Provider-Lebenszyklen werden
+  weiterhin fail-closed validiert.
   Ein bereits verifizierter `public-app-shell/v2`-Footer kann den permanenten
   No-Cookies-Datenschutzweg ohne doppelten App-Link bereitstellen. Physischer
   Icon-Quellpfad und öffentliche Same-Origin-URL können bei

@@ -1,5 +1,5 @@
 const CONTRACT_ID = "public-app-essentials/v1";
-const CONTRACT_VERSION = "1.1.6";
+const CONTRACT_VERSION = "1.2.0";
 const PLACE_SUGGESTION_CAPABILITIES = new Set(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]);
 const LOCALE_EVENT = "milosapps:localechange";
 const READY_EVENT = "milosapps:ready";
@@ -15,9 +15,15 @@ const COPY = Object.freeze({
     share: "Teilen",
     copied: "Link kopiert",
     shareFailed: "Teilen war nicht möglich",
-    year: "Jahr wählen",
     today: "Heute",
-    dateHint: "Datum direkt eingeben oder im Kalender wählen.",
+    calendar: "Kalender",
+    calendarLabel: "Datum im Kalender wählen",
+    datePlaceholder: "TT.MM.JJJJ",
+    nativeDateHint: "Datum direkt eingeben oder im Kalender wählen.",
+    dateHint: "Datum als TT.MM.JJJJ eingeben oder im Kalender wählen.",
+    dateRequiredError: "Bitte ein Datum eingeben.",
+    dateFormatError: "Datum vollständig als TT.MM.JJJJ eingeben.",
+    dateInvalidError: "Dieses Datum gibt es nicht.",
     placeLabel: "Ort oder Region",
     placePlaceholder: "z. B. Köln, Bayern oder London",
     search: "Suchen",
@@ -38,9 +44,15 @@ const COPY = Object.freeze({
     share: "Share",
     copied: "Link copied",
     shareFailed: "Sharing was not possible",
-    year: "Choose year",
     today: "Today",
-    dateHint: "Enter a date directly or choose it in the calendar.",
+    calendar: "Calendar",
+    calendarLabel: "Choose date in calendar",
+    datePlaceholder: "DD/MM/YYYY",
+    nativeDateHint: "Enter a date directly or choose it in the calendar.",
+    dateHint: "Enter the date as DD/MM/YYYY or choose it in the calendar.",
+    dateRequiredError: "Enter a date.",
+    dateFormatError: "Enter the complete date as DD/MM/YYYY.",
+    dateInvalidError: "This date does not exist.",
     placeLabel: "Place or region",
     placePlaceholder: "e.g. Cologne, Bavaria or London",
     search: "Search",
@@ -394,6 +406,70 @@ function clampIsoDate(value, min, max) {
   return value;
 }
 
+function formatMemorableDate(value, locale) {
+  if (!validIsoDate(value)) return "";
+  const [year, month, day] = value.split("-");
+  return normalizeLocale(locale) === "en" ? `${day}/${month}/${year}` : `${day}.${month}.${year}`;
+}
+
+function parseMemorableDate(rawValue, min, max) {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return Object.freeze({ value: "", error: "" });
+  let dayText;
+  let monthText;
+  let yearText;
+  const compact = /^(\d{2})(\d{2})(\d{4})$/.exec(raw);
+  const separated = /^(\d{1,2})([.\/-])(\d{1,2})\2(\d{4})$/.exec(raw);
+  if (compact) {
+    [, dayText, monthText, yearText] = compact;
+  } else if (separated) {
+    [, dayText, , monthText, yearText] = separated;
+  } else {
+    return Object.freeze({ value: "", error: "format" });
+  }
+  const value = `${yearText}-${String(Number(monthText)).padStart(2, "0")}-${String(Number(dayText)).padStart(2, "0")}`;
+  if (!validIsoDate(value)) return Object.freeze({ value: "", error: "date" });
+  if (min && value < min) return Object.freeze({ value: "", error: "min" });
+  if (max && value > max) return Object.freeze({ value: "", error: "max" });
+  return Object.freeze({ value, error: "" });
+}
+
+function dateErrorMessage(reason, locale, min, max) {
+  const normalizedLocale = normalizeLocale(locale);
+  const copy = COPY[normalizedLocale];
+  if (reason === "required") return copy.dateRequiredError;
+  if (reason === "date") return copy.dateInvalidError;
+  if (reason === "min") {
+    const boundary = formatMemorableDate(min, normalizedLocale);
+    return normalizedLocale === "en"
+      ? `The date must be on or after ${boundary}.`
+      : `Das Datum muss am oder nach dem ${boundary} liegen.`;
+  }
+  if (reason === "max") {
+    const boundary = formatMemorableDate(max, normalizedLocale);
+    return normalizedLocale === "en"
+      ? `The date must be on or before ${boundary}.`
+      : `Das Datum muss am oder vor dem ${boundary} liegen.`;
+  }
+  return copy.dateFormatError;
+}
+
+function selectMemorableDateSegment(input) {
+  if (typeof input?.setSelectionRange !== "function") return;
+  const value = String(input.value || "");
+  const caret = Number(input.selectionStart);
+  const selectionEnd = Number(input.selectionEnd);
+  if (!value || !Number.isFinite(caret) || !Number.isFinite(selectionEnd) || caret !== selectionEnd) return;
+  const segments = [...value.matchAll(/\d+/g)].map((match) => Object.freeze({ start: match.index, end: match.index + match[0].length }));
+  const normalizedSegments = segments.length === 1 && /^\d{8}$/.test(value)
+    ? [{ start: 0, end: 2 }, { start: 2, end: 4 }, { start: 4, end: 8 }]
+    : segments;
+  if (normalizedSegments.length !== 3) return;
+  const segment = normalizedSegments.find(({ start, end }) => caret >= start && (caret < end || (caret === value.length && end === value.length)));
+  if (!segment) return;
+  input.setSelectionRange(segment.start, segment.end);
+}
+
 function replaceYear(value, year) {
   const [oldYear, month, day] = value.split("-").map(Number);
   if (![oldYear, month, day, year].every(Number.isFinite)) return value;
@@ -413,12 +489,21 @@ export class MilosDatePicker extends HTMLElement {
     this.dataset.milosReady = "true";
     this.min = this.getAttribute("min") || "1900-01-01";
     this.max = this.getAttribute("max") || "2100-12-31";
+    this.mode = this.getAttribute("mode") === "known-date-text" ? "known-date-text" : "native-date";
+    this.locale = activeLocale;
     this.currentValue = clampIsoDate(this.getAttribute("value") || isoToday(), this.min, this.max);
+    this.dirty = false;
+    this.invalidReason = "";
     this.render();
     this.setLocale(activeLocale);
   }
 
   render() {
+    if (this.mode === "known-date-text") this.renderKnownDateText();
+    else this.renderNativeDate();
+  }
+
+  createDateFrame() {
     this.replaceChildren();
     const id = `milos-date-${globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2)}`;
     const label = document.createElement("label");
@@ -427,6 +512,11 @@ export class MilosDatePicker extends HTMLElement {
     label.textContent = this.getAttribute(`label-${activeLocale}`) || this.getAttribute("label") || "Datum";
     const row = document.createElement("div");
     row.dataset.milosDateRow = "";
+    return { id, label, row };
+  }
+
+  renderNativeDate() {
+    const { id, label, row } = this.createDateFrame();
     const input = document.createElement("input");
     input.dataset.milosDateInput = "";
     input.id = id;
@@ -453,6 +543,8 @@ export class MilosDatePicker extends HTMLElement {
     const today = document.createElement("button");
     today.type = "button";
     today.dataset.milosDateToday = "";
+    const todayValue = isoToday();
+    today.disabled = clampIsoDate(todayValue, this.min, this.max) !== todayValue;
     input.addEventListener("change", (event) => { event.stopPropagation(); this.commit(input.value, input, year); });
     year.addEventListener("change", (event) => {
       event.stopPropagation();
@@ -463,7 +555,9 @@ export class MilosDatePicker extends HTMLElement {
       const base = input.value || this.currentValue || clampIsoDate(isoToday(), this.min, this.max);
       this.commit(replaceYear(base, Number(year.value)), input, year);
     });
-    today.addEventListener("click", () => this.commit(clampIsoDate(isoToday(), this.min, this.max), input, year));
+    today.addEventListener("click", () => {
+      if (!today.disabled) this.commit(todayValue, input, year);
+    });
     row.append(input, year, today);
     const note = document.createElement("p");
     note.dataset.milosFieldNote = "";
@@ -472,40 +566,215 @@ export class MilosDatePicker extends HTMLElement {
     this.yearSelect = year;
     this.todayButton = today;
     this.note = note;
+    this.calendarInput = undefined;
+    this.calendarButton = undefined;
+    this.calendarText = undefined;
+    this.error = undefined;
+  }
+
+  renderKnownDateText() {
+    const { id, label, row } = this.createDateFrame();
+    const input = document.createElement("input");
+    input.dataset.milosDateInput = "";
+    input.id = id;
+    input.type = "text";
+    input.inputMode = "numeric";
+    input.required = this.hasAttribute("required");
+    input.value = formatMemorableDate(this.currentValue, activeLocale);
+    const note = document.createElement("p");
+    note.dataset.milosFieldNote = "";
+    note.id = `${id}-hint`;
+    const error = document.createElement("p");
+    error.dataset.milosDateError = "";
+    error.id = `${id}-error`;
+    error.hidden = true;
+    error.setAttribute("role", "alert");
+    input.setAttribute("aria-describedby", `${note.id} ${error.id}`);
+    input.setAttribute("aria-invalid", "false");
+    const calendarAction = document.createElement("button");
+    calendarAction.type = "button";
+    calendarAction.dataset.milosDateCalendarAction = "";
+    const calendarText = document.createElement("span");
+    calendarText.dataset.milosDateCalendarText = "";
+    const calendar = document.createElement("input");
+    calendar.dataset.milosDateNative = "";
+    calendar.type = "date";
+    calendar.tabIndex = -1;
+    calendar.setAttribute("aria-hidden", "true");
+    const calendarSupported = calendar.type === "date" && typeof calendar.showPicker === "function";
+    calendarAction.hidden = !calendarSupported;
+    calendarAction.disabled = !calendarSupported;
+    calendar.disabled = !calendarSupported;
+    calendar.min = this.min;
+    calendar.max = this.max;
+    calendar.value = this.currentValue;
+    calendarAction.append(calendarText);
+    const today = document.createElement("button");
+    today.type = "button";
+    today.dataset.milosDateToday = "";
+    const todayValue = isoToday();
+    today.disabled = clampIsoDate(todayValue, this.min, this.max) !== todayValue;
+    input.addEventListener("input", () => {
+      this.dirty = true;
+      this.clearDateError();
+    });
+    input.addEventListener("change", (event) => event.stopPropagation());
+    input.addEventListener("blur", () => this.commitRaw(input.value));
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.commitRaw(input.value);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        this.restoreLastValidValue();
+      }
+    });
+    input.addEventListener("pointerup", () => selectMemorableDateSegment(input));
+    calendarAction.addEventListener("click", () => {
+      if (calendarAction.disabled || typeof calendar.showPicker !== "function") return;
+      try {
+        calendar.showPicker();
+      } catch {
+        calendarAction.disabled = true;
+        calendarAction.hidden = true;
+        calendar.disabled = true;
+      }
+    });
+    calendar.addEventListener("change", (event) => {
+      event.stopPropagation();
+      this.commitIso(calendar.value);
+    });
+    today.addEventListener("click", () => {
+      if (!today.disabled) this.commitIso(todayValue);
+    });
+    row.append(input, calendarAction, calendar, today);
+    this.append(label, row, note, error);
+    this.input = input;
+    this.calendarInput = calendar;
+    this.calendarButton = calendarAction;
+    this.calendarText = calendarText;
+    this.todayButton = today;
+    this.note = note;
+    this.error = error;
+    this.yearSelect = undefined;
   }
 
   commit(value, input = this.input, year = this.yearSelect) {
+    if (this.mode === "known-date-text") return this.commitIso(value ? String(value) : "");
     const requested = String(value || "");
     const normalized = clampIsoDate(requested, this.min, this.max);
     if (requested && !normalized) {
       input.value = this.currentValue || "";
       year.value = this.currentValue?.slice(0, 4) || "";
-      return;
+      return false;
     }
     if (normalized === (this.currentValue || "")) {
       if (input.value !== normalized) input.value = normalized;
       year.value = normalized.slice(0, 4);
-      return;
+      return true;
     }
     this.currentValue = normalized;
     if (input.value !== normalized) input.value = normalized;
     year.value = normalized.slice(0, 4);
     if (normalized) this.setAttribute("value", normalized);
     else this.removeAttribute("value");
-    this.dispatchEvent(new CustomEvent("milosapps:datechange", { detail: Object.freeze({ value: normalized }), bubbles: true, composed: true }));
+    this.dispatchDateChange(normalized);
+    return true;
+  }
+
+  commitRaw(rawValue) {
+    if (!String(rawValue || "").trim() && this.input?.required) {
+      this.dirty = true;
+      this.setDateError("required");
+      return false;
+    }
+    const parsed = parseMemorableDate(rawValue, this.min, this.max);
+    if (parsed.error) {
+      this.dirty = true;
+      this.setDateError(parsed.error);
+      return false;
+    }
+    this.commitIso(parsed.value);
+    return true;
+  }
+
+  commitIso(value) {
+    const normalized = value ? clampIsoDate(String(value), this.min, this.max) : "";
+    if (value && !normalized) {
+      this.restoreLastValidValue();
+      return false;
+    }
+    const changed = normalized !== (this.currentValue || "");
+    this.currentValue = normalized;
+    this.dirty = false;
+    this.invalidReason = "";
+    if (this.input) this.input.value = formatMemorableDate(normalized, this.locale || activeLocale);
+    if (this.calendarInput) this.calendarInput.value = normalized;
+    this.clearDateError();
+    if (normalized) this.setAttribute("value", normalized);
+    else this.removeAttribute("value");
+    if (!changed) return true;
+    this.dispatchDateChange(normalized);
+    return true;
+  }
+
+  dispatchDateChange(value) {
+    this.dispatchEvent(new CustomEvent("milosapps:datechange", { detail: Object.freeze({ value }), bubbles: true, composed: true }));
     this.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  restoreLastValidValue() {
+    this.dirty = false;
+    if (this.input) this.input.value = formatMemorableDate(this.currentValue || "", this.locale || activeLocale);
+    if (this.calendarInput) this.calendarInput.value = this.currentValue || "";
+    this.clearDateError();
+  }
+
+  setDateError(reason) {
+    this.invalidReason = reason;
+    if (this.input) this.input.setAttribute("aria-invalid", "true");
+    if (this.error) {
+      this.error.textContent = dateErrorMessage(reason, this.locale || activeLocale, this.min, this.max);
+      this.error.hidden = false;
+    }
+  }
+
+  clearDateError() {
+    this.invalidReason = "";
+    if (this.input) this.input.setAttribute("aria-invalid", "false");
+    if (this.error) {
+      this.error.textContent = "";
+      this.error.hidden = true;
+    }
+  }
+
   get value() { return this.currentValue || ""; }
-  set value(value) { if (this.input) this.commit(String(value)); else this.setAttribute("value", String(value)); }
+  set value(value) {
+    if (!this.input) {
+      this.setAttribute("value", String(value));
+      return;
+    }
+    const nextValue = value ? String(value) : "";
+    if (this.mode === "known-date-text") this.commitIso(nextValue);
+    else this.commit(nextValue);
+  }
 
   setLocale(locale) {
-    const copy = COPY[normalizeLocale(locale)];
+    const normalizedLocale = normalizeLocale(locale);
+    this.locale = normalizedLocale;
+    const copy = COPY[normalizedLocale];
     const label = this.querySelector("[data-milos-field-label]");
-    if (label) label.textContent = this.getAttribute(`label-${normalizeLocale(locale)}`) || this.getAttribute("label") || (locale === "en" ? "Date" : "Datum");
-    if (this.yearSelect) this.yearSelect.setAttribute("aria-label", copy.year);
+    if (label) label.textContent = this.getAttribute(`label-${normalizedLocale}`) || this.getAttribute("label") || (normalizedLocale === "en" ? "Date" : "Datum");
+    if (this.mode === "known-date-text" && this.input) {
+      this.input.placeholder = copy.datePlaceholder;
+      if (!this.dirty) this.input.value = formatMemorableDate(this.currentValue || "", normalizedLocale);
+    }
+    if (this.mode === "native-date" && this.yearSelect) this.yearSelect.setAttribute("aria-label", normalizedLocale === "en" ? "Choose year" : "Jahr wählen");
+    if (this.calendarButton) this.calendarButton.setAttribute("aria-label", copy.calendarLabel);
+    if (this.calendarText) this.calendarText.textContent = copy.calendar;
     if (this.todayButton) this.todayButton.textContent = copy.today;
-    if (this.note) this.note.textContent = copy.dateHint;
+    if (this.note) this.note.textContent = this.mode === "known-date-text" ? copy.dateHint : copy.nativeDateHint;
+    if (this.invalidReason && this.error) this.error.textContent = dateErrorMessage(this.invalidReason, normalizedLocale, this.min, this.max);
   }
 }
 

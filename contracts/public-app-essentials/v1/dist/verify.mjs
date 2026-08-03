@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.6";
+const VERSION = "1.2.0";
 const PLACE_SUGGESTION_CAPABILITIES = new Set(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]);
 const SHELL_ID = "public-app-shell/v2";
 const SHELL_VERSION = "2.0.3";
@@ -994,7 +994,12 @@ export async function verifyEssentials(appRootInput, manifestInput) {
       fail("no-cookies requires persistent consumer-owned privacy information or a verified public-app-shell/v2 footer link");
     }
   }
-  if (manifest.features?.datePicker && htmlTags(markupSources, "milos-date-picker").length === 0) fail("enabled date picker is missing");
+  const datePickers = htmlTags(markupSources, "milos-date-picker").map(({ source }) => source);
+  if (manifest.features?.datePicker && datePickers.length === 0) fail("enabled date picker is missing");
+  for (const datePicker of datePickers) {
+    const mode = attributeValue(datePicker, "mode");
+    if (mode && mode !== "known-date-text") fail("date picker mode must be known-date-text or omitted for the legacy native mode");
+  }
   if (manifest.features?.placeSearch && htmlTags(markupSources, "milos-place-search").length === 0) fail("enabled place search is missing");
   if (manifest.features?.placeSearch && !hasMethodCall(codeTokens, "setSearchProvider")) fail("enabled place search requires an app-owned search provider");
   if (suggestions.enabled) {

@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## public-app-essentials 1.2.0 – 2026-08-03
+
+- `MilosDatePicker` bietet zusätzlich den expliziten Modus
+  `mode="known-date-text"` für merkbare Daten. Er verwendet eine normal
+  editierbare numerische Texteingabe mit klarer Tag-Monat-Jahr-Hilfe und eine
+  getrennte native Kalenderaktion; der bisherige native Modus bleibt ohne
+  Opt-in unverändert der Standard.
+- Der neue Modus akzeptiert Tag, Monat und vierstelliges Jahr mit Punkt,
+  Schrägstrich oder Bindestrich sowie kompakt acht Ziffern. Gültige Werte
+  werden intern weiterhin als `YYYY-MM-DD` ausgegeben. Ungültige,
+  unvollständige oder außerhalb von `min`/`max` liegende Eingaben bleiben
+  sichtbar und erhalten eine genaue lokalisierte Fehlermeldung.
+- Enter und Blur committen, Escape stellt den letzten gültigen Wert wieder
+  her. Ein einfacher Pointerklick kann ein vollständiges Tag-, Monat- oder
+  Jahrsegment auswählen, ohne den Fokus automatisch weiterzuschalten.
+  Eine echte Schaltfläche öffnet bei Browserunterstützung die getrennte native
+  Kalenderauswahl. „Heute“ ist außerhalb von `min`/`max` deaktiviert;
+  Pflichtfelder markieren einen leeren Rohwert als ungültig. Kalenderwahl,
+  Heute, optionales Clear und externe ISO-Setter behalten den bestehenden
+  Ereignisvertrag mit höchstens einem semantischen und einem normalen
+  Change-Ereignis pro tatsächlicher Änderung.
+- Nur Sky aktiviert den neuen Modus. Alle bestehenden Verbraucher bleiben auf
+  ihren festen Pins beziehungsweise ohne `mode` im alten Datumsmodus;
+  Loader, Privacy, Share, Place, Shell und Productiongrenzen ändern sich nicht.
+
 ## public-app-essentials 1.1.6 – 2026-08-03
 
 - `MilosDatePicker` schreibt einen bereits normalisierten nativen Datumswert

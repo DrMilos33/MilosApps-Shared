@@ -1,6 +1,6 @@
 # public-app-essentials/v1
 
-Version `1.1.6` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
+Version `1.2.0` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
 MilosApps: einen begrenzten Startzustand, einen wahrheitsgemäßen
 Datenschutzhinweis, Teilen, Datumsauswahl und Ort-/Regionssuche. Der Vertrag ist
 frameworkneutral und dependency-frei. Er ersetzt weder
@@ -232,33 +232,48 @@ unverändert.
 
 ## Datum
 
-`<milos-date-picker>` kapselt den nativen `<input type="date">`, ergänzt einen
-direkten Jahressprung und „Heute“. Damit bleiben Plattformtastatur,
-Kalenderbedienung und Assistive-Technology-Unterstützung erhalten, während
-Darstellung und Ereignis vereinheitlicht werden.
+`<milos-date-picker>` behält seinen bisherigen nativen Datumsmodus samt
+Jahressprung als rückwärtskompatiblen Standard. Für merkbare Daten bietet
+Version 1.2.0 zusätzlich den expliziten Modus `known-date-text`:
 
 ```html
 <milos-date-picker min="1900-01-01" max="2100-12-31"
-  label-de="Datum" label-en="Date"></milos-date-picker>
+  label-de="Datum" label-en="Date"
+  mode="known-date-text"></milos-date-picker>
 ```
 
-Der ISO-Wert `YYYY-MM-DD` wird pro Bedienänderung genau einmal als
-`milosapps:datechange` und genau einmal als normales `change`-Ereignis
-ausgegeben. Die App bleibt Eigentümerin von Fachgrenzen wie
-Zeitzone, historischer Gültigkeit und erlaubtem Zeitraum.
+Die primäre Eingabe ist dann ein normales Textfeld mit `inputmode="numeric"`.
+Deutsch akzeptiert `D.M.YYYY`, `D/M/YYYY`, `D-M-YYYY` und kompakt exakt acht
+Ziffern `DDMMYYYY`; Englisch nutzt dieselbe Tag-Monat-Jahr-Reihenfolge und
+zeigt sie ausdrücklich als `DD/MM/YYYY` an. `13111995` wird beim Commit zu
+`1995-11-13`. Gemischte Trenner, zweistellige Jahre, unmögliche Kalendertage
+und Werte außerhalb von `min`/`max` sind ungültig. Der Rohtext bleibt dabei
+sichtbar und erhält `aria-invalid` sowie eine genaue lokalisierte Meldung.
 
-Bei einer gültigen Änderung im nativen Datumsfeld übernimmt der Baustein den
-bereits normalisierten Wert, ohne ihn redundant erneut in `input.value` zu
-schreiben. Das erhält bei segmentierten nativen Date-Pickern die aktive
-Tag-/Monat-/Jahr-Auswahl während direkter Zifferneingabe. Ein externer
-Wertsetter, Jahressprung oder „Heute“ schreibt weiterhin genau dann in das
-native Feld, wenn sich der Zielwert tatsächlich unterscheidet; ungültige Werte
-werden unverändert auf den letzten gültigen Stand zurückgesetzt.
+Enter oder Blur versucht zu committen. Escape stellt den letzten gültigen
+formatierten Wert wieder her. Ein einfacher Pointerklick in einem vollständigen
+Wert kann nur das getroffene Tag-, Monat- oder Jahrsegment auswählen; eine
+automatische Fokusverlagerung findet nicht statt. Eine getrennte native
+Kalenderaktion bleibt als Progressive Enhancement erhalten: Eine sichtbare
+Schaltfläche ruft nur bei Browserunterstützung `showPicker()` auf; andernfalls
+entfällt sie fail-closed. „Heute“ bleibt erhalten, ist aber deaktiviert, wenn
+der heutige Tag außerhalb von `min`/`max` liegt. Clear bleibt für optionale
+Felder möglich. Bei `required` bleibt ein leerer Rohwert sichtbar, wird als
+ungültig erklärt und ändert den letzten gültigen ISO-Wert nicht. Der alte
+Jahressprung erscheint im neuen Modus nicht. Ein eigener ARIA-Kalender ist
+ausdrücklich nicht Teil des Vertrags.
 
-Der Reflow richtet sich nach der tatsächlichen Komponentenbreite, nicht nur
-nach dem Browserfenster. Datum, Jahressprung und Heute überlappen deshalb auch
-in einer schmalen Seitenleiste nicht. Alle Ziele bleiben 44 px hoch; Selects
-reservieren am Inline-Ende 2,25 rem für den nativen Pfeil und längere Werte.
+Intern und in Events bleibt der Wert `YYYY-MM-DD`. Pro tatsächlicher Änderung
+werden genau ein `milosapps:datechange` und ein normales `change`-Ereignis
+ausgegeben; ein Commit desselben Werts bleibt still. Apps bleiben Eigentümer
+von Zeitzone, historischer Gültigkeit und erlaubtem Zeitraum. Der Reflow richtet
+sich nach der tatsächlichen Komponentenbreite; alle sichtbaren Aktionen bleiben
+mindestens 44 px hoch.
+
+Ohne `mode="known-date-text"` bleibt der native v1.1.6-Pfad unverändert. Dort
+wird ein bereits normalisierter nativer Wert weiterhin nicht redundant in
+`input.value` geschrieben. Bestehende Verbraucher migrieren dadurch nicht
+automatisch.
 
 ## Ort und Region
 
@@ -329,10 +344,10 @@ ihre veröffentlichten Limits bestimmt. Eine App darf das deshalb für ein
 entsprechend belegtes DEV verwenden, erhält dadurch aber keine pauschale
 Productionfreigabe. Das ist keine Rechtsberatung.
 
-## Migration von 1.0.0 bis 1.1.5 auf 1.1.6
+## Migration von 1.0.0 bis 1.1.6 auf 1.2.0
 
-1. `essentialsContract.version` auf `1.1.6` und `sharedCommit` auf den
-   unveränderlichen v1.1.6-Releasecommit setzen. `$schema` auf das vendorte
+1. `essentialsContract.version` auf `1.2.0` und `sharedCommit` auf den
+   unveränderlichen v1.2.0-Releasecommit setzen. `$schema` auf das vendorte
    Schema umstellen, `vendorDirectory` als Repositorypfad,
    `runtimeBasePath` als tatsächlich ausgelieferten URL-Basispfad und
    `consumerEntryModule` mit physischer Integrationsdatei plus exakter
@@ -372,7 +387,16 @@ Productionfreigabe. Das ist keine Rechtsberatung.
    `setSearchProvider(...)` bleibt die explizite Submit-Suche. Für direkte
    Provider bleiben Umgebung, Terms, Rate-Limits, Attribution, Privacy und
    Productioneignung app-eigene Gates.
-8. `features.startup=true` setzen beziehungsweise beibehalten und die komplette
+8. Eine App, die merkbare Daten ohne native Segmentbearbeitung eingeben lässt,
+   setzt ausschließlich am vorhandenen `<milos-date-picker>`
+   `mode="known-date-text"`. Sie prüft Text, Paste, Enter, Blur, Escape, Clear,
+   Heute, native Kalenderwahl, Tag-/Monat-/Jahr-Segmentauswahl, `min`/`max`,
+   Schaltjahr, DE/EN und den einzelnen ISO-Eventpfad. Ein echter Chromium-Lauf
+   deckt dabei mindestens `13111995`, einen Klick am rechten Rand des
+   Jahrsegments, Blur/Escape und die sichtbare Kalenderaktion ab; Fake-DOM-
+   Tests allein genügen für diese Browsergrenzen nicht. Ohne dieses Attribut
+   bleibt der bisherige native Modus einschließlich Jahressprung aktiv.
+9. `features.startup=true` setzen beziehungsweise beibehalten und die komplette
    statische Loaderstruktur ergänzen. Das App-Icon trägt im Quellmarkup
    `width="32" height="32"`; so bleibt auch der Zustand vor dem CSS-Laden
    kompakt. Beide Essentials-CSS-Dateien stehen vor
@@ -380,15 +404,15 @@ Productionfreigabe. Das ist keine Rechtsberatung.
    `globalThis.milosAppEssentials.ready()` auf; ein altes, direkt dispatchtes
    Ready-Event reicht nicht. Das gilt ausdrücklich auch für Portal-v1.0-
    Verbraucher, die zuvor `startup=false` oder keinen Loader hatten.
-9. Das Schema ist nun selbst Teil des Locks. Themewerte sind ausschließlich
+10. Das Schema ist nun selbst Teil des Locks. Themewerte sind ausschließlich
    gültige Hex-Farben oder eng benannte app-eigene Custom Properties der Form
    `var(--token-name)`. Fallbacks, `url()`-Assets und beliebige CSS-Ausdrücke
    bleiben verboten. So darf eine App ihr geprüftes Hell-/Dunkel-Theme
    weiterverwenden, ohne fremde Ressourcen oder Deklarationen einzuschleusen.
-10. Im Vendorverzeichnis die enge Regel `* text eol=lf` setzen und den Verifier
+11. Im Vendorverzeichnis die enge Regel `* text eol=lf` setzen und den Verifier
    nach einem frischen Windows-Recheckout mit `core.autocrlf=true` erneut
    ausführen. Das schützt alle sechs bytegenauen Textartefakte.
-11. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
+12. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
    Escape/Abort/Stale-Result, genau eine Listbox, Außenklick, race-sichere
    Auswahl, Localewechsel und Disconnect-Cleanup in der Verbraucher-
    Browsermatrix prüfen.

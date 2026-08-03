@@ -131,6 +131,7 @@ milos-app-shell:not(:defined) > [slot="app-icon"] {
 .milos-essential-button,
 milos-share-button > button,
 milos-date-picker button,
+milos-date-picker [data-milos-date-calendar-action],
 milos-place-search button {
   min-height: var(--milos-essential-target);
   display: inline-flex;
@@ -157,6 +158,7 @@ milos-share-button > button[data-primary] {
 .milos-essential-button:hover,
 milos-share-button > button:hover,
 milos-date-picker button:hover,
+milos-date-picker [data-milos-date-calendar-action]:hover,
 milos-place-search button:hover { border-color: var(--milos-essential-accent); }
 
 .milos-essential-button:focus-visible,
@@ -250,6 +252,29 @@ milos-date-picker select {
   text-overflow: ellipsis;
 }
 
+[data-milos-date-calendar-action] {
+  min-width: 0;
+}
+[data-milos-date-calendar-action][hidden] { display: none !important; }
+
+milos-date-picker [data-milos-date-native] {
+  position: fixed;
+  inset: auto auto 0 -10000px;
+  width: 1px;
+  min-width: 1px;
+  height: 1px;
+  min-height: 1px;
+  padding: 0;
+  border: 0;
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+milos-date-picker [data-milos-date-input][aria-invalid="true"] { border-color: var(--milos-essential-focus); }
+[data-milos-date-error] { margin: 0; color: var(--milos-essential-text); font-size: 0.8rem; font-weight: 650; }
+[data-milos-date-error][hidden] { display: none; }
+
 [data-milos-field-note], [data-milos-place-status] { margin: 0; color: var(--milos-essential-muted); font-size: 0.8rem; }
 
 [data-milos-place-results] {
@@ -283,6 +308,7 @@ milos-place-search [hidden] { display: none !important; }
   [data-milos-date-row] { grid-template-columns: minmax(0, 1fr); }
   [data-milos-date-input],
   [data-milos-date-year],
+  [data-milos-date-calendar-action],
   [data-milos-date-today] { grid-column: 1; width: 100%; }
 }
 

@@ -28,6 +28,9 @@ function fakeNode(tagName = "div") {
     isConnected: true,
     textContent: "",
     value: "",
+    showPickerCalls: 0,
+    selectionStart: 0,
+    selectionEnd: 0,
     hidden: false,
     children: [],
     attributes: new Map(),
@@ -66,6 +69,13 @@ function fakeNode(tagName = "div") {
     dispatchEvent(event) {
       for (const listener of this.listeners.get(event.type) || []) listener.call(this, event);
       return true;
+    },
+    setSelectionRange(start, end) {
+      this.selectionStart = start;
+      this.selectionEnd = end;
+    },
+    showPicker() {
+      this.showPickerCalls += 1;
     },
     querySelector(selector) {
       return this.querySelectorAll(selector)[0] || null;
@@ -280,57 +290,193 @@ export async function validateLifecycle(runtimeUrl) {
     assert(place.searchButton.disabled && place.locateButton.disabled, "stale locate finally cannot release new busy UI");
     assert(place.events.length === 0, "stale locate result cannot dispatch events");
 
+    const legacyDatePicker = new MilosDatePicker();
+    legacyDatePicker.setAttribute("value", "2026-08-03");
+    legacyDatePicker.connectedCallback();
+    const legacyAssignments = trackValueAssignments(legacyDatePicker.input);
+    legacyAssignments.setFromNativeInput("2026-08-24");
+    legacyDatePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
+    assert(legacyDatePicker.input.type === "date" && legacyDatePicker.yearSelect && !legacyDatePicker.calendarInput, "default date mode preserves the v1.1.6 native input and year jump");
+    assert(legacyDatePicker.note.textContent === "Datum direkt eingeben oder im Kalender wählen.", "default native mode preserves its existing user hint");
+    assert(legacyAssignments.assignments() === 0 && legacyDatePicker.value === "2026-08-24", "default native mode still avoids redundant assignments on valid browser change");
+    assert(legacyDatePicker.events.filter(({ type }) => type === "change").length === 1 && legacyDatePicker.events.filter(({ type }) => type === "milosapps:datechange").length === 1, "default native mode still dispatches one host and semantic event");
+    legacyAssignments.setFromNativeInput("2026-02-31");
+    legacyAssignments.reset();
+    legacyDatePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
+    assert(legacyAssignments.assignments() === 1 && legacyDatePicker.input.value === "2026-08-24", "default native mode keeps invalid rollback behavior");
+    const legacyEventsBeforeInvalidSetter = legacyDatePicker.events.length;
+    legacyDatePicker.value = "not-a-date";
+    assert(legacyDatePicker.value === "2026-08-24" && legacyDatePicker.input.value === "2026-08-24" && legacyDatePicker.events.length === legacyEventsBeforeInvalidSetter, "default native mode keeps invalid external setter rollback event-silent");
+
     const datePicker = new MilosDatePicker();
+    datePicker.setAttribute("mode", "known-date-text");
     datePicker.setAttribute("value", "2026-08-03");
     datePicker.connectedCallback();
-    const dateInputAssignments = trackValueAssignments(datePicker.input);
     const hostChangeCount = () => datePicker.events.filter(({ type }) => type === "change").length;
     const semanticChangeCount = () => datePicker.events.filter(({ type }) => type === "milosapps:datechange").length;
 
-    dateInputAssignments.setFromNativeInput("2026-08-24");
-    datePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
-    assert(dateInputAssignments.assignments() === 0, "native date change preserves the active input segment by avoiding a redundant value assignment");
-    assert(datePicker.value === "2026-08-24" && datePicker.yearSelect.value === "2026", "native date change commits the already-normalized input value");
-    assert(hostChangeCount() === 1 && semanticChangeCount() === 1, "native date change dispatches exactly one host and semantic event");
+    assert(datePicker.input.type === "text" && datePicker.input.inputMode === "numeric", "memorable date uses a numeric text input instead of segmented native date editing");
+    assert(datePicker.input.value === "03.08.2026" && datePicker.input.placeholder === "TT.MM.JJJJ", "German date text renders and communicates an unambiguous format");
+    assert(!datePicker.yearSelect && datePicker.calendarButton?.tagName === "BUTTON" && datePicker.todayButton, "redundant year jump is removed while separate calendar and Today button actions remain");
+    assert(datePicker.calendarInput.parentNode === datePicker.calendarButton.parentNode && datePicker.calendarInput.parentNode !== datePicker.calendarButton, "native calendar input is an offscreen sibling instead of a transparent control over the visible button");
+    datePicker.calendarButton.dispatchEvent({ type: "click" });
+    assert(datePicker.calendarInput.showPickerCalls === 1, "visible calendar button opens the separate native picker exactly once");
 
-    datePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
-    assert(dateInputAssignments.assignments() === 0, "same-value native date change does not reassign the input value");
-    assert(hostChangeCount() === 1 && semanticChangeCount() === 1, "same-value native date change remains event-silent");
+    datePicker.input.value = "13111995";
+    datePicker.input.dispatchEvent({ type: "input" });
+    assert(datePicker.input.value === "13111995" && datePicker.value === "2026-08-03", "partial compact input remains raw and uncommitted while editing");
+    datePicker.input.dispatchEvent({ type: "keydown", key: "Enter", preventDefault() {} });
+    assert(datePicker.input.value === "13.11.1995" && datePicker.value === "1995-11-13", "compact German date commits to ISO on Enter");
+    assert(hostChangeCount() === 1 && semanticChangeCount() === 1, "valid Enter commit dispatches exactly one host and semantic event");
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(hostChangeCount() === 1 && semanticChangeCount() === 1, "blur after Enter does not dispatch a duplicate date event");
 
-    dateInputAssignments.reset();
-    datePicker.value = "2027-05-06";
-    assert(dateInputAssignments.assignments() === 1 && datePicker.input.value === "2027-05-06" && datePicker.yearSelect.value === "2027", "external date setter still writes a changed input value");
+    datePicker.input.value = "13.11.";
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(datePicker.input.value === "13.11." && datePicker.input.attributes.get("aria-invalid") === "true", "incomplete date remains visible and is marked invalid on blur");
+    assert(datePicker.error.hidden === false && /TT\.MM\.JJJJ/.test(datePicker.error.textContent), "incomplete German date gets an exact localized format error");
+    assert(datePicker.value === "1995-11-13" && hostChangeCount() === 1, "invalid raw input neither rolls back nor dispatches a change");
+    datePicker.input.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+    assert(datePicker.input.value === "13.11.1995" && datePicker.input.attributes.get("aria-invalid") === "false" && datePicker.error.hidden, "Escape restores the last valid formatted value and clears the error");
 
-    dateInputAssignments.reset();
-    datePicker.yearSelect.value = "2028";
-    datePicker.yearSelect.dispatchEvent({ type: "change", stopPropagation() {} });
-    assert(dateInputAssignments.assignments() === 1 && datePicker.value === "2028-05-06" && datePicker.input.value === "2028-05-06", "year jump still writes its changed date into the native input");
+    datePicker.input.value = "29/02/2024";
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(datePicker.value === "2024-02-29" && datePicker.input.value === "29.02.2024", "slash-separated leap day commits and normalizes for German display");
+    datePicker.input.value = "01-03-2024";
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(datePicker.value === "2024-03-01" && datePicker.input.value === "01.03.2024", "hyphen-separated German date is accepted and normalized");
+    datePicker.input.value = "29-02-2023";
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(datePicker.input.value === "29-02-2023" && datePicker.input.attributes.get("aria-invalid") === "true" && /nicht/.test(datePicker.error.textContent), "impossible date remains raw with a specific German calendar error");
 
-    datePicker.currentValue = "2001-01-01";
-    dateInputAssignments.setFromNativeInput("2001-01-01");
-    datePicker.yearSelect.value = "2001";
-    dateInputAssignments.reset();
-    datePicker.todayButton.dispatchEvent({ type: "click" });
-    assert(dateInputAssignments.assignments() === 1 && datePicker.value === datePicker.input.value && datePicker.value !== "2001-01-01", "Today still writes its changed date into the native input");
-    assert(datePicker.yearSelect.value === datePicker.value.slice(0, 4), "Today keeps the year jump synchronized");
+    datePicker.input.value = "31.12.1899";
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(datePicker.input.value === "31.12.1899" && /01\.01\.1900/.test(datePicker.error.textContent), "out-of-range date remains raw and names the German minimum date");
+    datePicker.input.value = "01.01.2101";
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(datePicker.input.value === "01.01.2101" && /31\.12\.2100/.test(datePicker.error.textContent), "out-of-range date remains raw and names the German maximum date");
 
-    datePicker.currentValue = "2026-08-03";
-    dateInputAssignments.setFromNativeInput("2026-02-31");
-    datePicker.yearSelect.value = "2026";
-    dateInputAssignments.reset();
-    const eventsBeforeInvalid = datePicker.events.length;
-    datePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
-    assert(dateInputAssignments.assignments() === 1 && datePicker.input.value === "2026-08-03" && datePicker.value === "2026-08-03", "invalid native date still rolls back the input to the last valid value");
-    assert(datePicker.events.length === eventsBeforeInvalid, "invalid native date remains event-silent");
+    datePicker.input.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+    datePicker.input.selectionStart = 7;
+    datePicker.input.selectionEnd = 7;
+    datePicker.input.dispatchEvent({ type: "pointerup" });
+    assert(datePicker.input.selectionStart === 6 && datePicker.input.selectionEnd === 10, "pointer selection isolates the German year segment so it can be replaced first");
+    datePicker.input.selectionStart = datePicker.input.value.length;
+    datePicker.input.selectionEnd = datePicker.input.value.length;
+    datePicker.input.dispatchEvent({ type: "pointerup" });
+    assert(datePicker.input.selectionStart === 6 && datePicker.input.selectionEnd === 10, "pointer at the end of the value still selects the final year segment");
+    datePicker.input.selectionStart = 1;
+    datePicker.input.selectionEnd = 1;
+    datePicker.input.dispatchEvent({ type: "pointerup" });
+    assert(datePicker.input.selectionStart === 0 && datePicker.input.selectionEnd === 2, "pointer selection isolates only the clicked day segment without moving focus");
+    datePicker.input.selectionStart = 2;
+    datePicker.input.selectionEnd = 2;
+    datePicker.input.dispatchEvent({ type: "pointerup" });
+    assert(datePicker.input.selectionStart === 2 && datePicker.input.selectionEnd === 2, "pointer on a date separator does not unexpectedly select a neighboring segment");
+    datePicker.input.selectionStart = 0;
+    datePicker.input.selectionEnd = 2;
+    datePicker.input.dispatchEvent({ type: "pointerup" });
+    assert(datePicker.input.selectionStart === 0 && datePicker.input.selectionEnd === 2, "pointer handler preserves an existing drag selection");
 
-    dateInputAssignments.setFromNativeInput("");
-    dateInputAssignments.reset();
-    const hostChangesBeforeClear = hostChangeCount();
+    datePicker.input.value = "31.12.";
+    datePicker.input.selectionStart = 4;
+    datePicker.input.selectionEnd = 4;
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.setLocale("en");
+    assert(datePicker.input.value === "31.12." && datePicker.input.selectionStart === 4 && datePicker.input.selectionEnd === 4, "locale switch preserves dirty raw text and caret instead of rewriting an active edit");
+    assert(datePicker.input.placeholder === "DD/MM/YYYY", "locale switch still updates the communicated input format during a dirty edit");
+    datePicker.input.dispatchEvent({ type: "keydown", key: "Escape", preventDefault() {} });
+    assert(datePicker.input.value === "01/03/2024", "Escape after locale switch restores the last valid value in the current locale");
+    datePicker.setLocale("de");
+
+    const changesBeforeClear = hostChangeCount();
     const semanticChangesBeforeClear = semanticChangeCount();
-    datePicker.input.dispatchEvent({ type: "change", stopPropagation() {} });
-    assert(dateInputAssignments.assignments() === 0 && datePicker.value === "" && datePicker.input.value === "" && datePicker.yearSelect.value === "", "native date clear commits without redundantly reassigning the empty input");
-    assert(hostChangeCount() === hostChangesBeforeClear + 1 && semanticChangeCount() === semanticChangesBeforeClear + 1, "native date clear dispatches exactly one host and semantic event");
-    assert(datePicker.events.filter(({ type }) => type === "milosapps:datechange").at(-1)?.detail?.value === "", "native date clear dispatches an empty semantic value");
+    datePicker.input.value = "";
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(datePicker.value === "" && datePicker.input.value === "" && datePicker.input.attributes.get("aria-invalid") === "false", "clear remains a valid commit");
+    assert(hostChangeCount() === changesBeforeClear + 1 && semanticChangeCount() === semanticChangesBeforeClear + 1, "clear dispatches exactly one host and semantic event");
+
+    datePicker.value = "2000-12-31";
+    assert(datePicker.value === "2000-12-31" && datePicker.input.value === "31.12.2000", "external ISO setter synchronizes the localized text input");
+    const eventsBeforeInvalidSetter = datePicker.events.length;
+    datePicker.value = "not-a-date";
+    assert(datePicker.value === "2000-12-31" && datePicker.input.value === "31.12.2000" && datePicker.events.length === eventsBeforeInvalidSetter, "known-date mode rejects an invalid external ISO setter without clearing or dispatching");
+    datePicker.setLocale("en");
+    assert(datePicker.input.value === "31/12/2000" && datePicker.input.placeholder === "DD/MM/YYYY", "English mode uses an explicitly communicated day-month-year text format");
+    datePicker.input.value = "13/11/1995";
+    datePicker.input.dispatchEvent({ type: "input" });
+    datePicker.input.dispatchEvent({ type: "blur" });
+    assert(datePicker.value === "1995-11-13" && datePicker.input.value === "13/11/1995", "English day-month-year text commits to the same ISO contract");
+
+    datePicker.calendarInput.value = "2024-02-29";
+    datePicker.calendarInput.dispatchEvent({ type: "change", stopPropagation() {} });
+    assert(datePicker.value === "2024-02-29" && datePicker.input.value === "29/02/2024", "native calendar selection synchronizes text and ISO value");
+
+    datePicker.value = "2001-01-01";
+    datePicker.todayButton.dispatchEvent({ type: "click" });
+    assert(datePicker.value === datePicker.calendarInput.value && datePicker.value !== "2001-01-01", "Today keeps text, native calendar and ISO value synchronized");
+
+    const requiredDatePicker = new MilosDatePicker();
+    requiredDatePicker.setAttribute("mode", "known-date-text");
+    requiredDatePicker.setAttribute("required", "");
+    requiredDatePicker.setAttribute("value", "1995-11-13");
+    requiredDatePicker.connectedCallback();
+    requiredDatePicker.input.value = "";
+    requiredDatePicker.input.dispatchEvent({ type: "input" });
+    requiredDatePicker.input.dispatchEvent({ type: "keydown", key: "Enter", preventDefault() {} });
+    assert(requiredDatePicker.input.value === "" && requiredDatePicker.value === "1995-11-13" && requiredDatePicker.input.attributes.get("aria-invalid") === "true", "required empty Enter preserves the raw empty field and last valid ISO value while marking it invalid");
+    assert(/Datum eingeben/.test(requiredDatePicker.error.textContent) && requiredDatePicker.events.length === 0, "required empty Enter shows the localized required error without dispatching an event");
+    requiredDatePicker.input.dispatchEvent({ type: "blur" });
+    assert(requiredDatePicker.input.required && requiredDatePicker.input.value === "" && requiredDatePicker.value === "1995-11-13" && requiredDatePicker.input.attributes.get("aria-invalid") === "true", "required empty blur also preserves raw text and the last valid value");
+    assert(requiredDatePicker.events.length === 0, "required empty blur remains event-silent");
+    requiredDatePicker.setLocale("en");
+    assert(requiredDatePicker.input.value === "" && requiredDatePicker.error.textContent === "Enter a date.", "required empty error remains raw and is localized when the locale changes");
+    requiredDatePicker.setLocale("de");
+
+    const boundedLegacyDatePicker = new MilosDatePicker();
+    boundedLegacyDatePicker.setAttribute("min", "2099-01-01");
+    boundedLegacyDatePicker.setAttribute("max", "2099-12-31");
+    boundedLegacyDatePicker.setAttribute("value", "2099-06-15");
+    boundedLegacyDatePicker.connectedCallback();
+    boundedLegacyDatePicker.todayButton.dispatchEvent({ type: "click" });
+    assert(boundedLegacyDatePicker.todayButton.disabled && boundedLegacyDatePicker.value === "2099-06-15" && boundedLegacyDatePicker.events.length === 0, "legacy Today disables outside min/max and never substitutes a boundary date");
+
+    const boundedTextDatePicker = new MilosDatePicker();
+    boundedTextDatePicker.setAttribute("mode", "known-date-text");
+    boundedTextDatePicker.setAttribute("min", "2099-01-01");
+    boundedTextDatePicker.setAttribute("max", "2099-12-31");
+    boundedTextDatePicker.setAttribute("value", "2099-06-15");
+    boundedTextDatePicker.connectedCallback();
+    boundedTextDatePicker.todayButton.dispatchEvent({ type: "click" });
+    assert(boundedTextDatePicker.todayButton.disabled && boundedTextDatePicker.value === "2099-06-15" && boundedTextDatePicker.events.length === 0, "known-date Today disables outside min/max and never substitutes a boundary date");
+
+    const supportedCreateElement = globalThis.document.createElement;
+    globalThis.document.createElement = (tagName) => {
+      const node = fakeNode(tagName);
+      node.showPicker = undefined;
+      return node;
+    };
+    const unsupportedCalendarDatePicker = new MilosDatePicker();
+    unsupportedCalendarDatePicker.setAttribute("mode", "known-date-text");
+    unsupportedCalendarDatePicker.setAttribute("value", "1995-11-13");
+    unsupportedCalendarDatePicker.connectedCallback();
+    globalThis.document.createElement = supportedCreateElement;
+    assert(unsupportedCalendarDatePicker.calendarButton.hidden && unsupportedCalendarDatePicker.calendarButton.disabled && unsupportedCalendarDatePicker.calendarInput.disabled, "calendar action fails closed when native showPicker is unavailable");
+
+    const throwingCalendarDatePicker = new MilosDatePicker();
+    throwingCalendarDatePicker.setAttribute("mode", "known-date-text");
+    throwingCalendarDatePicker.setAttribute("value", "1995-11-13");
+    throwingCalendarDatePicker.connectedCallback();
+    throwingCalendarDatePicker.calendarInput.showPicker = () => { throw new Error("picker unavailable"); };
+    throwingCalendarDatePicker.calendarButton.dispatchEvent({ type: "click" });
+    assert(throwingCalendarDatePicker.calendarButton.hidden && throwingCalendarDatePicker.calendarButton.disabled && throwingCalendarDatePicker.calendarInput.disabled, "calendar action fails closed when showPicker rejects activation at runtime");
 
     const keyboardPlace = new MilosPlaceSearch();
     keyboardPlace.input = fakeNode();
@@ -515,7 +661,7 @@ export async function validateLifecycle(runtimeUrl) {
       }
     };
     const directEssentials = initMilosAppEssentials(directProviderConfig);
-    assert(directEssentials.version === "1.1.6", "runtime accepts the evidenced direct autocomplete capability");
+    assert(directEssentials.version === "1.2.0", "runtime accepts the evidenced direct autocomplete capability");
     let unknownCapabilityError;
     try {
       initMilosAppEssentials({
