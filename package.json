@@ -8,6 +8,7 @@
     "test:v2": "node contracts/public-app-shell/v2/tools/validate.mjs",
     "test:layout": "node contracts/public-app-layout/v1/tools/validate.mjs",
     "test:essentials": "node contracts/public-app-essentials/v1/tools/validate.mjs",
+    "test:react-template": "pnpm --dir templates/public-app-react-vite/v1 test:ci",
     "test": "npm run test:v1 && npm run test:v2 && npm run test:layout && npm run test:essentials"
   }
 }

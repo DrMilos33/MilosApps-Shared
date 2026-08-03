@@ -1,0 +1,54 @@
+:root {
+  --template-accent: #315f53;
+  --template-surface: #fffdf8;
+  --template-border: #cfc9ba;
+  color: #27302d;
+  background: #f4f0e6;
+  font-family: system-ui, sans-serif;
+}
+
+.react-stage {
+  display: grid;
+  gap: 1rem;
+  width: min(44rem, calc(100% - 2rem));
+  margin: 2rem auto;
+  padding: clamp(1rem, 4vw, 2rem);
+  overflow-wrap: anywhere;
+  border: 1px solid var(--template-border);
+  border-radius: 1.5rem;
+  background: var(--template-surface);
+}
+
+.react-stage__eyebrow {
+  margin: 0;
+  color: var(--template-accent);
+  font-weight: 700;
+}
+
+.react-stage h1,
+.react-stage p {
+  margin: 0;
+}
+
+.react-stage button {
+  min-height: 44px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 0.8rem;
+  color: #fff;
+  background: var(--template-accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.react-stage button:focus-visible {
+  outline: 3px solid #c65136;
+  outline-offset: 3px;
+}
+
+.react-stage output {
+  min-height: 1.5em;
+}

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## public-app-react-vite-template 1.0.0 – 2026-08-04
+
+- Eine kopierbare, versionierte React-19-/Vite-8-/TypeScript-Basis ergänzt
+  Shared, ohne einen neuen Runtimevertrag einzuführen. Shell und statischer
+  Loader bleiben außerhalb des React-Roots; Locale und Ready verwenden die
+  bestehenden frameworkneutralen Ereignis- und Lifecyclegrenzen.
+- Vorlage, Metadatenschema, exakte Paketpins, Lockdatei, Strict-CSP-Build,
+  Unit- und Browsergates sichern Desktop, Mobil und 200-Prozent-Reflow.
+- React Aria bleibt ein dokumentiertes Opt-in-Rezept. Die CSP-Grenze
+  dynamischer Overlay-Inlinestile sowie das segmentierte Datumsmodell werden
+  ausdrücklich fail-closed benannt.
+- Der Tag ist nur Scaffold-Provenienz. Nach dem Kopieren besitzt die jeweilige
+  App Quellcode und Lockfile; spätere Vorlagen-Releases lösen weder Sync noch
+  Verbraucher-Rollout aus.
+
 ## public-app-essentials 1.2.0 – 2026-08-03
 
 - `MilosDatePicker` bietet zusätzlich den expliziten Modus

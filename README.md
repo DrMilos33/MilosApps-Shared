@@ -8,6 +8,8 @@ Integrationsverträge.
 - [`brand/`](brand/README.md): Farben, Typografie, Logos, Icons und Design-Tokens
 - [`contracts/`](contracts/README.md): stabile, appübergreifende Daten- und
   Integrationsverträge
+- [`templates/`](templates/README.md): optionale, versionierte App-Scaffolds
+  ohne gemeinsame Browser-Runtime
 - [`CHANGELOG.md`](CHANGELOG.md): vorbereitete und veröffentlichte Änderungen
 
 ## Verfügbare Verträge
@@ -53,6 +55,12 @@ Apps übernehmen ausschließlich eine markierte Release-Version oder ein daraus
 gebautes Paket. Direkte relative Importe aus diesem Repository sind verboten.
 So kann jede App selbst entscheiden, wann sie eine neue Shared-Version testet
 und veröffentlicht.
+
+Die React-/Vite-Vorlage unter `templates/public-app-react-vite/v1` ist davon
+bewusst getrennt. Sie wird einmalig aus einem unveränderlichen Template-Tag
+kopiert; anschließend gehören Quellcode, Paketpins und Lockdatei der App.
+React bleibt optional, Shell/Layout/Essentials bleiben frameworkneutral und
+kein neuer Template-Tag migriert bestehende Apps automatisch.
 
 ## Paketformat
 

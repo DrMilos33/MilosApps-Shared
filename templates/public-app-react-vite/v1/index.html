@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4f0e6" />
+    <meta name="description" content="MilosApps React-/Vite-Vorlage" />
+    <link rel="icon" href="/template-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/template-startup.css" />
+    <title>MilosApps React Starter</title>
+  </head>
+  <body data-milos-essentials-loading>
+    <section data-milos-app-loading role="status" aria-live="polite">
+      <div data-milos-loading-card>
+        <img data-milos-loading-icon src="/template-icon.svg" width="32" height="32" alt="" />
+        <span data-milos-loading-brand>MilosApps</span>
+        <p data-milos-loading-title>React Starter</p>
+        <p data-milos-loading-message>Die App wird geöffnet …</p>
+      </div>
+    </section>
+
+    <!--
+      Consumer apps load their pinned, app-local Essentials and Shell
+      bootstraps here. The template preview remains standalone so it cannot
+      pretend to own a registered appKey or a consumer lock.
+    -->
+    <milos-app-shell>
+      <svg slot="app-icon" width="38" height="38" viewBox="0 0 38 38" aria-hidden="true" focusable="false">
+        <rect width="38" height="38" rx="11" fill="currentColor" />
+        <path d="M11 19h16M19 11v16" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+      </svg>
+      <main id="main" slot="main">
+        <div id="react-root" data-milos-react-root></div>
+        <noscript>Diese App benötigt JavaScript.</noscript>
+      </main>
+    </milos-app-shell>
+
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

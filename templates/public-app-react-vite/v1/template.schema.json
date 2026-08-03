@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://milos-apps.de/schemas/public-app-react-vite-template-v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "id", "version", "lifecycle", "referenceApp", "packageManager", "node", "runtime", "build", "optionalRecipes"],
+  "properties": {
+    "$schema": { "type": "string", "const": "./template.schema.json" },
+    "id": { "type": "string", "const": "public-app-react-vite-template/v1" },
+    "version": { "type": "string", "const": "1.0.0" },
+    "lifecycle": { "type": "string", "const": "scaffold-only" },
+    "referenceApp": { "type": "string", "const": "cloud-post" },
+    "packageManager": { "type": "string", "const": "pnpm@11.9.0" },
+    "node": { "type": "string", "const": "24" },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["react", "reactDom"],
+      "properties": {
+        "react": { "type": "string", "const": "19.2.8" },
+        "reactDom": { "type": "string", "const": "19.2.8" }
+      }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vite", "typescript"],
+      "properties": {
+        "vite": { "type": "string", "const": "8.1.5" },
+        "typescript": { "type": "string", "const": "7.0.2" }
+      }
+    },
+    "optionalRecipes": {
+      "type": "array",
+      "const": ["react-aria"]
+    }
+  }
+}

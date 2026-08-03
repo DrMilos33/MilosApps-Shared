@@ -1,5 +1,10 @@
 /dist/
 /packages/*/dist/
 /node_modules/
+templates/public-app-react-vite/v1/node_modules/
+templates/public-app-react-vite/v1/dist/
+templates/public-app-react-vite/v1/test-results/
+templates/public-app-react-vite/v1/playwright-report/
+templates/public-app-react-vite/v1/*.tsbuildinfo
 *.tmp
 Thumbs.db

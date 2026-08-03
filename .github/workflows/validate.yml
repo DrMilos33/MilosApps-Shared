@@ -29,3 +29,23 @@ jobs:
         run: node contracts/public-app-layout/v1/tools/validate.mjs
       - name: Validate public app essentials v1
         run: node contracts/public-app-essentials/v1/tools/validate.mjs
+
+  react-template:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: templates/public-app-react-vite/v1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: templates/public-app-react-vite/v1/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:ci

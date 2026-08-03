@@ -26,6 +26,9 @@ keinen laufenden Identity-Dienst und keine Datenbank.
   personenbezogenen Beispieldaten.
 - Bilder, Icons und Schriften benötigen dokumentierte Herkunft und Lizenz.
 - Ein Shared-Release erzwingt kein Deployment einer verbrauchenden App.
+- App-Vorlagen sind einmalige, versionierte Scaffolds und keine
+  Verbraucher-Runtime. Nach dem Kopieren besitzt die App Quellcode und
+  Lockdatei selbst; ein neuer Vorlagen-Tag löst keinen Rollout aus.
 
 ## Prüfung
 

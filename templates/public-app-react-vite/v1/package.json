@@ -1,0 +1,39 @@
+{
+  "name": "milosapps-react-vite-starter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=24.0.0 <25"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 4321 --strictPort",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "build": "tsc -b && vite build",
+    "test:subpath": "vite build --base /template-subpath/ && node scripts/validate-subpath.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 4321 --strictPort",
+    "validate:template": "node scripts/validate-template.mjs",
+    "test:e2e": "playwright test",
+    "test:ci": "pnpm validate:template && pnpm test && pnpm build && pnpm test:e2e && pnpm test:subpath"
+  },
+  "dependencies": {
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0",
+    "@testing-library/jest-dom": "7.0.0",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.3",
+    "@types/node": "24.0.0",
+    "@types/react": "19.2.8",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.4",
+    "jsdom": "30.0.1",
+    "typescript": "7.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
+  }
+}
