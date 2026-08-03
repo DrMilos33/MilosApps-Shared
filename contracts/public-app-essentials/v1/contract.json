@@ -1,7 +1,7 @@
 {
   "$schema": "./schema.json",
   "id": "public-app-essentials/v1",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "status": "stable",
   "purpose": "shared-startup-privacy-share-date-and-place-interactions",
   "delivery": {
@@ -132,15 +132,30 @@
       "suggestions": {
         "optional": true,
         "explicitCapabilityDeclarationRequired": true,
-        "providerCapability": "consumer-autocomplete-proxy",
+        "providerCapabilities": ["consumer-autocomplete-proxy", "provider-autocomplete-direct"],
         "providerEvidenceRequired": true,
+        "directProviderEvidenceMinimum": [
+          "credential-free-https-endpoint",
+          "official-autocomplete-permission",
+          "browser-cors-boundary",
+          "terms-and-usage-scope",
+          "rate-limits",
+          "data-source-license-attribution",
+          "transmitted-data-and-privacy",
+          "cache-lifetime",
+          "production-reassessment"
+        ],
         "providerRegistration": "setSuggestionsProvider",
         "minCharsRange": [2, 6],
         "debounceMsRange": [200, 1000],
         "abortRequired": true,
         "staleResultSuppressionRequired": true,
         "disconnectInvalidatesPendingOperation": true,
-        "keyboardNavigationRequired": true
+        "keyboardNavigationRequired": true,
+        "singleSharedListboxRequired": true,
+        "outsidePointerDismissRequired": true,
+        "outsidePointerSelectionRaceSafe": true,
+        "disconnectRemovesGlobalListener": true
       },
       "consumerOwnedBoundaries": ["provider", "rate-limit", "cache", "attribution", "time-zone"]
     }

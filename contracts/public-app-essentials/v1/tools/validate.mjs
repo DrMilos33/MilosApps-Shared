@@ -59,7 +59,7 @@ const readme = await readFile(path.join(root, "README.md"), "utf8");
 const referenceEntry = await readFile(path.join(fixtureRoot, "index.html"), "utf8");
 const referenceFallback = await readFile(path.join(fixtureRoot, "loading.html"), "utf8");
 
-assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.3", "contract id/version");
+assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.4", "contract id/version");
 assert(contract.status === "stable", "stable contract status");
 assert(schemaErrors(schema, contract).length === 0, "contract validates against its schema");
 assert(schema.properties.id.const === contract.id && schema.properties.version.const === contract.version, "contract schema pins id/version");
@@ -82,9 +82,9 @@ assert(contract.modules.datePicker.implementation === "native-date-input-plus-ye
 assert(contract.modules.datePicker.reflowBasis === "component-inline-size" && contract.modules.datePicker.selectInlineEndSafeAreaRequired, "date component reflow and select safe area");
 assert(contract.modules.placeSearch.providerOwnedByConsumer && contract.modules.placeSearch.explicitSubmitRequired, "provider-neutral explicit place search");
 assert(contract.modules.placeSearch.publicNominatimAutocompleteForbidden && contract.modules.placeSearch.publicNominatimSubmitSearchAllowed, "public Nominatim remains submit-only");
-assert(contract.modules.placeSearch.defaultMode === "submit-only" && contract.modules.placeSearch.suggestions.providerEvidenceRequired && contract.modules.placeSearch.suggestions.providerRegistration === "setSuggestionsProvider", "place suggestions are explicit and evidenced");
+assert(contract.modules.placeSearch.defaultMode === "submit-only" && JSON.stringify(contract.modules.placeSearch.suggestions.providerCapabilities) === JSON.stringify(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]) && contract.modules.placeSearch.suggestions.providerEvidenceRequired && contract.modules.placeSearch.suggestions.providerRegistration === "setSuggestionsProvider", "place suggestions are explicit and evidenced for proxy or direct providers");
 assert(JSON.stringify(contract.modules.placeSearch.selectedDisplayFields) === JSON.stringify(["name", "region", "country"]) && contract.modules.placeSearch.localeChangeInvalidatesPendingOperations, "place selection and locale lifecycle stay unambiguous");
-assert(contract.modules.placeSearch.suggestions.abortRequired && contract.modules.placeSearch.suggestions.staleResultSuppressionRequired && contract.modules.placeSearch.suggestions.keyboardNavigationRequired, "suggestions lifecycle and keyboard contract");
+assert(contract.modules.placeSearch.suggestions.abortRequired && contract.modules.placeSearch.suggestions.staleResultSuppressionRequired && contract.modules.placeSearch.suggestions.keyboardNavigationRequired && contract.modules.placeSearch.suggestions.singleSharedListboxRequired && contract.modules.placeSearch.suggestions.outsidePointerDismissRequired && contract.modules.placeSearch.suggestions.outsidePointerSelectionRaceSafe && contract.modules.placeSearch.suggestions.disconnectRemovesGlobalListener, "suggestions lifecycle, popup and keyboard contract");
 assert(contract.quality.controlsMinTargetPx === 44 && contract.quality.zoomViewport === "360x800@200%", "touch and reflow gates");
 assert(contract.quality.productionApproved === false, "Production blocked");
 assert(contract.delivery.manifestSchemaLocked && contract.delivery.manifestConfigurationLocked && contract.delivery.runtimeBasePathRequired && contract.delivery.consumerEntryModuleRequired && contract.delivery.sourceCommitProvenanceRequired && contract.delivery.bootstrapBeforeConsumerModulesRequired && contract.delivery.asyncModuleScriptsAllowed === false && contract.delivery.consumerArtifactCount === 6 && contract.delivery.releaseSourceArtifactCount === 5 && contract.delivery.symlinkedDestinationsForbidden && contract.delivery.hardLinkedDestinationsForbidden && contract.quality.themeColorTokensOnly && contract.quality.commentMarkersDoNotCountAsIntegration && contract.quality.consumerBrowserQaRequired, "schema, manifest, provenance, path, consumer entry, bootstrap, theme and real integration gates");
@@ -99,7 +99,7 @@ assert(example.privacy.optionalTracking === false && example.features.privacyNot
 assert(example.privacy.usesLocalStorage && example.privacy.storagePurposes.length === 1 && example.privacy.storagePurposes[0].strictlyNecessary === true, "example declares necessary app storage purpose");
 assert(example.features.placeSuggestions.enabled === false && example.features.placeSuggestions.providerCapability === "submit-only", "example defaults to submit-only place search");
 assert(example.$schema === "./vendor/milosapps-essentials/v1/essentials-manifest.schema.json" && example.essentialsContract.runtimeBasePath === "vendor/milosapps-essentials/v1" && example.consumerEntryModule.sourceFile === "app.js" && example.consumerEntryModule.runtimePath === "app.js" && example.loading.iconPath === "icon.svg" && example.loading.iconRuntimePath === "icon.svg", "example uses its locked schema and explicit runtime/consumer/icon paths");
-assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.3", "release identity");
+assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.4", "release identity");
 assert(JSON.stringify(Object.keys(release.artifacts || {}).sort()) === JSON.stringify(expectedReleaseArtifacts), "exact release source artifact set");
 assert(release.artifacts["dist/milos-app-essentials.css"] === digest(css), "release CSS hash");
 assert(release.artifacts["dist/milos-app-essentials.js"] === digest(runtime), "release runtime hash");
@@ -136,7 +136,7 @@ const shareStatusCss = cssText.match(/\[data-milos-share-status\]\s*\{([^}]*)\}/
 assert(shareStatusCss.includes("position: fixed") && shareStatusCss.includes("safe-area-inset-left") && shareStatusCss.includes("safe-area-inset-bottom"), "share feedback is viewport-fixed and safe-area bounded");
 
 const runtimeText = runtime.toString("utf8");
-for (const marker of ["navigator.share", "navigator.clipboard", "milosapps:datechange", "milosapps:placechange", "milosapps:ready", "role\", \"combobox", "setSuggestionsProvider", "suggestionRequestId", "searchRequestId", "locateRequestId", "connectionEpoch", "consumer-autocomplete-proxy", "disconnectedCallback", "storageRemove"] ) {
+for (const marker of ["navigator.share", "navigator.clipboard", "milosapps:datechange", "milosapps:placechange", "milosapps:ready", "role\", \"combobox", "setSuggestionsProvider", "suggestionRequestId", "searchRequestId", "locateRequestId", "connectionEpoch", "resultsGeneration", "consumer-autocomplete-proxy", "provider-autocomplete-direct", "handleDocumentPointerDown", "composedPath", "removeEventListener", "disconnectedCallback", "storageRemove"] ) {
   assert(runtimeText.includes(marker), `runtime JS marker: ${marker}`);
 }
 assert(!runtimeText.includes("style.setProperty"), "runtime inline theme mutation forbidden");
@@ -146,16 +146,16 @@ assert(!runtimeText.includes("storageSet("), "informational privacy dismissal ne
 assert(/input\.addEventListener\("change", \(event\) => \{ event\.stopPropagation\(\)/.test(runtimeText) && /year\.addEventListener\("change", \(event\) => \{[\s\S]{0,80}?event\.stopPropagation\(\)/.test(runtimeText), "native date changes are stopped before the single host change event");
 assert(runtimeText.includes("direction > 0 ? 0 : this.results.length - 1"), "initial ArrowUp selects the final place option");
 assert(runtimeText.includes("currentQuery === query") && runtimeText.includes("[place.name, place.region, place.country]"), "place rejection and selected display retain current query and country");
-assert(/if \(this\.locale && this\.locale !== selected\)[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);[\s\S]+?cancelLocate\(\);/.test(runtimeText), "locale changes invalidate all place operations");
+assert(/if \(this\.locale && this\.locale !== selected\)[\s\S]+?dismissResults\(\);/.test(runtimeText), "locale changes dismiss results and invalidate all place operations");
 assert((runtimeText.match(/dataset\.milosReady === "true"\) \{[\s\S]{0,100}?setLocale\(activeLocale\)/g) || []).length >= 3, "share, date and place resynchronize locale after reconnect");
 assert(runtimeText.indexOf('if (event.key === "Escape")') < runtimeText.indexOf("if (!this.results.length)"), "Escape cancels before empty-result early return");
-assert(/if \(event\.key === "Escape"\)[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);/.test(runtimeText), "Escape cancels both place request types");
-assert(/input\.addEventListener\("input"[\s\S]+?cancelSearch\(\);[\s\S]+?queueSuggestions\(\);/.test(runtimeText), "new input invalidates submit search before suggestions");
-assert(/input\.addEventListener\("input"[\s\S]+?cancelLocate\(\);[\s\S]+?cancelSearch\(\);/.test(runtimeText), "new input invalidates device location");
+assert(/if \(event\.key === "Escape"\)[\s\S]+?dismissResults\(\);/.test(runtimeText), "Escape dismisses results and cancels all place providers");
+assert(/input\.addEventListener\("input"[\s\S]+?dismissResults\(\);[\s\S]+?queueSuggestions\(\);/.test(runtimeText), "new input dismisses stale operations before suggestions");
 assert(/async runSearch\(\)[\s\S]+?cancelLocate\(\);[\s\S]+?cancelSuggestions\(\);/.test(runtimeText), "explicit search invalidates device location");
 assert(/queueSuggestions\(\)[\s\S]+?cancelLocate\(\);[\s\S]+?cancelSuggestions\(\);/.test(runtimeText), "suggestion queue invalidates device location");
-assert(/select\(place\)[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);[\s\S]+?cancelLocate\(\);/.test(runtimeText), "place selection invalidates all place providers");
-assert(runtimeText.includes("isCurrentPlaceOperation") && runtimeText.includes("!signal?.aborted"), "place operations reject stale or aborted results");
+assert(/select\(place\)[\s\S]+?dismissResults\(\);/.test(runtimeText), "place selection dismisses results and invalidates all providers");
+assert(/dismissResults\(\)[\s\S]+?resultsGeneration[\s\S]+?cancelSuggestions\(\);[\s\S]+?cancelSearch\(\);[\s\S]+?cancelLocate\(\);[\s\S]+?renderResults\(\[\]\)/.test(runtimeText), "central dismissal increments generation, cancels providers and closes results");
+assert(runtimeText.includes("isCurrentPlaceOperation") && runtimeText.includes("!signal?.aborted") && runtimeText.includes("this.resultsGeneration === resultsGeneration"), "place operations reject stale, dismissed or aborted results");
 assert((runtimeText.match(/disconnectedCallback\(\)/g) || []).length >= 2, "share and place components clean up on disconnect");
 assert(runtimeText.includes('storageRemove(`milosapps.${activeConfig.appKey}.privacyNotice.v1`)') && runtimeText.includes('storageRemove(`milosapps.${activeConfig.appKey}.essentialCookieInfo.v1`)'), "both legacy privacy cleanup keys are app-namespaced and never accessed when storage is disabled");
 assert(runtimeText.includes("normalizeStoragePurposes") && runtimeText.includes("Optional device storage is forbidden"), "runtime rejects undeclared or optional device storage");
@@ -163,13 +163,13 @@ assert(verifier.toString("utf8").includes('manifest.privacy?.mode !== "no-cookie
 assert(verifier.toString("utf8").includes("validateStoragePurposes") && verifier.toString("utf8").includes("optional device storage is forbidden"), "verifier rejects optional device storage");
 assert(verifier.toString("utf8").includes('width !== "32" || height !== "32"') && verifier.toString("utf8").includes("exactly 32") && !verifier.toString("utf8").includes('Number(attributeValue(loadingIcon'), "verifier requires exact raw 32px fallback dimensions");
 assert(syncText.includes('execFileSync("git"') && syncText.includes("does not match --source-commit") && syncText.includes("release checksum mismatch"), "sync verifies Git-object and release provenance");
-assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 bis 1.1.2 auf 1.1.3") && readme.includes('width="32" height="32"') && readme.includes("privacy.permanentLink") && readme.includes("public-app-shell/v2") && readme.includes("runtimeBasePath") && readme.includes("Modul-URL im deklarierten Quell-`entryHtml`") && readme.includes("loading.iconRuntimePath") && readme.includes("image/svg+xml") && readme.includes("SHA-256") && readme.includes("Post-Build-/HTTP-Gate") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains 32px fallback, verified Shell privacy evidence, source/build entry boundaries, icon response QA, readiness, LF and provider boundaries without the legacy event recipe");
+assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 bis 1.1.3 auf 1.1.4") && readme.includes('width="32" height="32"') && readme.includes("privacy.permanentLink") && readme.includes("public-app-shell/v2") && readme.includes("runtimeBasePath") && readme.includes("Modul-URL im deklarierten Quell-`entryHtml`") && readme.includes("loading.iconRuntimePath") && readme.includes("image/svg+xml") && readme.includes("SHA-256") && readme.includes("Post-Build-/HTTP-Gate") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("provider-autocomplete-direct") && readme.includes("Nominatim") && readme.includes("Außenklick") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains 32px fallback, verified Shell privacy evidence, source/build entry boundaries, icon response QA, readiness, LF and both provider boundaries without the legacy event recipe");
 
 const lifecycleAssertions = await validateLifecycle(new URL("../dist/milos-app-essentials.js", import.meta.url));
 assert(lifecycleAssertions >= 27, "deterministic lifecycle, privacy, date and provider regressions");
 
 const fixture = await verifyEssentials(fixtureRoot, "essentials-manifest.json");
-assert(fixture.appKey === "reference-app" && fixture.version === "1.1.3", "reference fixture verifies");
+assert(fixture.appKey === "reference-app" && fixture.version === "1.1.4", "reference fixture verifies");
 const fixtureLock = await json("fixtures/reference-app/vendor/milosapps-essentials/v1/essentials-lock.json");
 assert(JSON.stringify(Object.keys(fixtureLock.artifacts || {}).sort()) === JSON.stringify(expectedConsumerArtifacts), "exact consumer lock artifact set");
 assert(fixtureLock.loadingIconRuntimePath === fixtureManifest.loading.iconRuntimePath, "loading icon runtime path is locked");
@@ -873,6 +873,42 @@ try {
   await writeFile(suggestionsAppPath, `${await readFile(suggestionsAppPath, "utf8")}\nconst explicitSubmitProviderUrl = "https://nominatim.openstreetmap.org/search";\n`, "utf8");
   const nominatimSubmitFixture = await verifyEssentials(suggestionsRoot, "essentials-manifest.json");
   assert(nominatimSubmitFixture.features.placeSuggestions.enabled === true, "public Nominatim host may coexist with separate evidenced suggestions proxy");
+
+  const directSuggestionsRoot = path.join(tempRoot, "direct-suggestions");
+  await cp(suggestionsRoot, directSuggestionsRoot, { recursive: true });
+  const directSuggestionsManifestPath = path.join(directSuggestionsRoot, "essentials-manifest.json");
+  const directSuggestionsManifest = JSON.parse(await readFile(directSuggestionsManifestPath, "utf8"));
+  directSuggestionsManifest.features.placeSuggestions.providerCapability = "provider-autocomplete-direct";
+  directSuggestionsManifest.features.placeSuggestions.evidenceFile = "direct-suggestions-provider.md";
+  await writeFile(directSuggestionsManifestPath, `${JSON.stringify(directSuggestionsManifest, null, 2)}\n`, "utf8");
+  await writeFile(path.join(directSuggestionsRoot, "direct-suggestions-provider.md"), "# Direct autocomplete provider evidence\n\nThe consumer records endpoint, permission, CORS, terms, limits, licence, attribution, privacy, cache lifetime and Production reassessment.\n", "utf8");
+  await syncEssentials({ "app-root": directSuggestionsRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const directSuggestionsFixture = await verifyEssentials(directSuggestionsRoot, "essentials-manifest.json");
+  assert(directSuggestionsFixture.features.placeSuggestions.providerCapability === "provider-autocomplete-direct", "evidenced direct provider suggestions verify");
+
+  const unknownSuggestionsRoot = path.join(tempRoot, "unknown-suggestions-capability");
+  await cp(directSuggestionsRoot, unknownSuggestionsRoot, { recursive: true });
+  const unknownSuggestionsManifestPath = path.join(unknownSuggestionsRoot, "essentials-manifest.json");
+  const unknownSuggestionsManifest = JSON.parse(await readFile(unknownSuggestionsManifestPath, "utf8"));
+  unknownSuggestionsManifest.features.placeSuggestions.providerCapability = "provider-autocomplete-unknown";
+  await writeFile(unknownSuggestionsManifestPath, `${JSON.stringify(unknownSuggestionsManifest, null, 2)}\n`, "utf8");
+  await expectFailure(
+    () => syncEssentials({ "app-root": unknownSuggestionsRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+    /manifest schema.*providerCapability|evidenced autocomplete capability/,
+    "unknown suggestions capability"
+  );
+
+  const disabledDirectSuggestionsRoot = path.join(tempRoot, "disabled-direct-suggestions");
+  await cp(directSuggestionsRoot, disabledDirectSuggestionsRoot, { recursive: true });
+  const disabledDirectManifestPath = path.join(disabledDirectSuggestionsRoot, "essentials-manifest.json");
+  const disabledDirectManifest = JSON.parse(await readFile(disabledDirectManifestPath, "utf8"));
+  disabledDirectManifest.features.placeSuggestions.enabled = false;
+  await writeFile(disabledDirectManifestPath, `${JSON.stringify(disabledDirectManifest, null, 2)}\n`, "utf8");
+  await expectFailure(
+    () => syncEssentials({ "app-root": disabledDirectSuggestionsRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+    /manifest schema.*providerCapability|disabled place suggestions/,
+    "disabled direct suggestions capability"
+  );
 
   const missingSuggestionsEvidenceRoot = path.join(tempRoot, "missing-suggestions-evidence");
   await cp(suggestionsRoot, missingSuggestionsEvidenceRoot, { recursive: true });

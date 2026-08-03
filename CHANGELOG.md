@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## public-app-essentials 1.1.4 – 2026-08-03
+
+- Eingabevorschläge akzeptieren neben einem app-eigenen Proxy nun eng die neue
+  Capability `provider-autocomplete-direct`, wenn ein direkter Browserprovider
+  Autocomplete ausdrücklich erlaubt und die App Endpunkt, CORS, Terms,
+  Rate-Limits, Lizenz, Attribution, Privacy und Productiongrenze nachweist.
+- Öffentliches Nominatim bleibt ausdrücklich submit-only. Ein direkter
+  Providernachweis ist kein pauschaler Productionvertrag.
+- `milos-place-search` schließt seine eine Listbox bei Außen-Pointer, Escape,
+  Auswahl, Localewechsel und Disconnect. Capture-Listener werden entfernt;
+  abort-ignorierende Altantworten können das Popup nicht erneut öffnen und
+  Optionsauswahl bleibt race-sicher.
+- Loader 32×32, Shell-Footer-Datenschutzweg und alle übrigen v1.1.3-Grenzen
+  bleiben rückwärtskompatibel erhalten.
+
 ## public-app-essentials 1.1.3 – 2026-08-03
 
 - Das gemeinsame App-Ladeicon ist im HTML-Fallback, in der CSS-Runtime und im

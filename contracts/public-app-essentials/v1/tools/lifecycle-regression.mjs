@@ -153,12 +153,22 @@ export async function validateLifecycle(runtimeUrl) {
       createElement: (tagName) => fakeNode(tagName),
       querySelector: (selector) => body.querySelector(selector),
       querySelectorAll: (selector) => body.querySelectorAll(selector),
-      addEventListener(type, listener) {
+      addEventListener(type, listener, capture = false) {
         const listeners = documentListeners.get(type) || [];
-        listeners.push(listener);
+        if (!listeners.some((entry) => entry.listener === listener && entry.capture === Boolean(capture))) {
+          listeners.push({ listener, capture: Boolean(capture) });
+        }
         documentListeners.set(type, listeners);
+      },
+      removeEventListener(type, listener, capture = false) {
+        const listeners = documentListeners.get(type) || [];
+        documentListeners.set(type, listeners.filter((entry) => entry.listener !== listener || entry.capture !== Boolean(capture)));
       }
     };
+    const dispatchDocumentEvent = (type, event) => {
+      for (const { listener } of [...(documentListeners.get(type) || [])]) listener.call(globalThis.document, event);
+    };
+    const documentListenerCount = (type, capture = false) => (documentListeners.get(type) || []).filter((entry) => entry.capture === Boolean(capture)).length;
     globalThis.localStorage = {
       removeItem(key) { removedStorageKeys.push(key); },
       setItem(key, value) { storageWrites.push([key, value]); }
@@ -274,6 +284,73 @@ export async function validateLifecycle(runtimeUrl) {
     keyboardPlace.onKeyDown({ key: "ArrowUp", preventDefault() {} });
     assert(keyboardPlace.activeIndex === 2, "initial ArrowUp selects the final place result");
 
+    const outsidePlace = new MilosPlaceSearch();
+    outsidePlace.connectedCallback();
+    outsidePlace.renderResults([
+      { name: "Berlin", region: "Berlin", country: "Deutschland" },
+      { name: "Bern", region: "Bern", country: "Schweiz" }
+    ]);
+    outsidePlace.activeIndex = 0;
+    outsidePlace.highlight();
+    assert(outsidePlace.input.attributes.get("aria-expanded") === "true" && outsidePlace.input.attributes.has("aria-activedescendant"), "open place popup exposes its active option");
+    dispatchDocumentEvent("pointerdown", { target: fakeNode(), composedPath: () => [fakeNode()] });
+    assert(outsidePlace.results.length === 0 && outsidePlace.activeIndex === -1 && outsidePlace.resultsElement.hidden, "outside pointer clears and hides place results");
+    assert(outsidePlace.input.attributes.get("aria-expanded") === "false" && !outsidePlace.input.attributes.has("aria-activedescendant"), "outside pointer collapses the exact combobox ARIA state");
+
+    outsidePlace.renderResults([{ name: "Berlin", region: "Berlin", country: "Deutschland" }]);
+    const insideOption = outsidePlace.resultsElement.children[0];
+    dispatchDocumentEvent("pointerdown", { target: fakeNode(), composedPath: () => [insideOption, outsidePlace.resultsElement, outsidePlace] });
+    assert(outsidePlace.results.length === 1 && !outsidePlace.resultsElement.hidden, "composed path keeps an internal option interaction open even with a misleading target");
+    insideOption.dispatchEvent({ type: "click" });
+    assert(outsidePlace.events.filter(({ type }) => type === "milosapps:placechange").length === 1, "internal option click selects exactly once after capture pointerdown");
+    assert(outsidePlace.resultsElement.hidden && outsidePlace.input.attributes.get("aria-expanded") === "false", "selection closes the shared popup");
+
+    const staleOutsideSuggestion = deferred();
+    outsidePlace.input.value = "Frei";
+    outsidePlace.suggestionsProvider = () => staleOutsideSuggestion.promise;
+    const staleOutsideSuggestionRun = outsidePlace.runSuggestions("Frei", outsidePlace.suggestionRequestId, outsidePlace.connectionEpoch, outsidePlace.resultsGeneration);
+    dispatchDocumentEvent("pointerdown", { target: fakeNode(), composedPath: () => [fakeNode()] });
+    staleOutsideSuggestion.resolve([{ name: "Freiburg", region: "Baden-Württemberg", country: "Deutschland", countryCode: "DE", latitude: 47.999, longitude: 7.842 }]);
+    await staleOutsideSuggestionRun;
+    assert(outsidePlace.results.length === 0 && outsidePlace.resultsElement.hidden && outsidePlace.status.textContent === "", "abort-ignoring suggestion cannot reopen after outside dismissal");
+
+    const staleOutsideSearch = deferred();
+    outsidePlace.input.value = "Hamburg";
+    outsidePlace.setSearchProvider(() => staleOutsideSearch.promise);
+    const staleOutsideSearchRun = outsidePlace.runSearch();
+    dispatchDocumentEvent("pointerdown", { target: fakeNode(), composedPath: () => [fakeNode()] });
+    staleOutsideSearch.resolve([{ name: "Hamburg", region: "Hamburg", country: "Deutschland", countryCode: "DE", latitude: 53.551, longitude: 9.994 }]);
+    await staleOutsideSearchRun;
+    assert(outsidePlace.results.length === 0 && outsidePlace.resultsElement.hidden && outsidePlace.status.textContent === "", "abort-ignoring submit search cannot reopen after outside dismissal");
+
+    const staleOutsideLocate = deferred();
+    outsidePlace.setLocateProvider(() => staleOutsideLocate.promise);
+    const placeEventsBeforeLocate = outsidePlace.events.length;
+    const staleOutsideLocateRun = outsidePlace.runLocate();
+    dispatchDocumentEvent("pointerdown", { target: fakeNode(), composedPath: () => [fakeNode()] });
+    staleOutsideLocate.resolve({ name: "Berlin", region: "Berlin", country: "Deutschland", countryCode: "DE", latitude: 52.52, longitude: 13.405 });
+    await staleOutsideLocateRun;
+    assert(outsidePlace.events.length === placeEventsBeforeLocate && outsidePlace.resultsElement.hidden, "abort-ignoring location cannot select after outside dismissal");
+
+    const freshSuggestion = deferred();
+    outsidePlace.input.value = "Berl";
+    outsidePlace.suggestionsProvider = () => freshSuggestion.promise;
+    const freshSuggestionRun = outsidePlace.runSuggestions("Berl", outsidePlace.suggestionRequestId, outsidePlace.connectionEpoch, outsidePlace.resultsGeneration);
+    freshSuggestion.resolve([{ name: "Berlin", region: "Berlin", country: "Deutschland", countryCode: "DE", latitude: 52.52, longitude: 13.405 }]);
+    await freshSuggestionRun;
+    assert(outsidePlace.results.length === 1 && !outsidePlace.resultsElement.hidden, "new generation can open fresh suggestions after dismissal");
+
+    const pointerListenersBeforeDisconnect = documentListenerCount("pointerdown", true);
+    outsidePlace.isConnected = false;
+    outsidePlace.disconnectedCallback();
+    assert(documentListenerCount("pointerdown", true) === pointerListenersBeforeDisconnect - 1, "disconnect removes the exact capture pointer listener");
+    assert(outsidePlace.resultsElement.hidden && outsidePlace.input.attributes.get("aria-expanded") === "false", "disconnect closes the popup and ARIA state");
+    outsidePlace.isConnected = true;
+    outsidePlace.connectedCallback();
+    const pointerListenersAfterReconnect = documentListenerCount("pointerdown", true);
+    outsidePlace.connectedCallback();
+    assert(documentListenerCount("pointerdown", true) === pointerListenersAfterReconnect, "reconnect keeps exactly one capture pointer listener per component");
+
     const staleSuggestion = deferred();
     const suggestionsPlace = new MilosPlaceSearch();
     suggestionsPlace.isConnected = true;
@@ -352,6 +429,49 @@ export async function validateLifecycle(runtimeUrl) {
     essentials.ready();
     assert(!document.querySelector("[data-milos-privacy-notice]"), "repeated ready cannot reopen a notice dismissed in this document");
     assert(storageWrites.length === 0, "document-scoped privacy dismissal does not persist consent state");
+
+    const directProviderConfig = {
+      appKey: "reference-app",
+      environment: "dev",
+      productionApproved: false,
+      loading: { appName: "Reference App", message: { de: "App wird geladen", en: "App is loading" } },
+      privacy: {
+        mode: "no-cookies",
+        usesLocalStorage: false,
+        storagePurposes: [],
+        optionalTracking: false,
+        privacyUrl: "https://example.test/privacy"
+      },
+      features: {
+        startup: true,
+        privacyNotice: false,
+        share: true,
+        datePicker: false,
+        placeSearch: true,
+        placeSuggestions: {
+          enabled: true,
+          minChars: 3,
+          debounceMs: 350,
+          providerCapability: "provider-autocomplete-direct",
+          evidenceFile: "direct-provider.md"
+        }
+      }
+    };
+    const directEssentials = initMilosAppEssentials(directProviderConfig);
+    assert(directEssentials.version === "1.1.4", "runtime accepts the evidenced direct autocomplete capability");
+    let unknownCapabilityError;
+    try {
+      initMilosAppEssentials({
+        ...directProviderConfig,
+        features: {
+          ...directProviderConfig.features,
+          placeSuggestions: { ...directProviderConfig.features.placeSuggestions, providerCapability: "provider-autocomplete-unknown" }
+        }
+      });
+    } catch (error) {
+      unknownCapabilityError = error;
+    }
+    assert(unknownCapabilityError instanceof TypeError, "runtime rejects an unknown autocomplete capability");
   } finally {
     if (original.HTMLElement === undefined) delete globalThis.HTMLElement;
     else globalThis.HTMLElement = original.HTMLElement;

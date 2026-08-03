@@ -29,7 +29,7 @@ Integrationsverträge.
   allgemeiner, CSP-sicher vendorter Interaktionsbaukasten für einen begrenzten
   Loading Screen, wahrheitsgemäße Datenschutzmodi, layoutstabiles Teilen,
   komponentenbreitenabhängige Datumsauswahl und eine providerneutrale
-  Ort-/Regionssuche. Version 1.1.3 begrenzt das App-Ladeicon in Markup und CSS
+  Ort-/Regionssuche. Version 1.1.4 begrenzt das App-Ladeicon in Markup und CSS
   einheitlich auf 32 mal 32 Pixel. Sie zeigt bei `no-cookies` keinen Banner,
   hält natives Teilen visuell still, erzwingt den Startup-Vertrag und
   validiert Schema, Release-Provenienz sowie Provider-Lebenszyklen fail-closed.
@@ -37,7 +37,10 @@ Integrationsverträge.
   No-Cookies-Datenschutzweg ohne doppelten App-Link bereitstellen. Physischer
   Icon-Quellpfad und öffentliche Same-Origin-URL können bei
   geroutetem Hosting getrennt deklariert werden.
-  Vorschläge bleiben an einen expliziten app-eigenen Proxy-Nachweis gebunden.
+  Vorschläge bleiben an einen expliziten Nachweis gebunden: app-eigener Proxy
+  oder ein Provider, der direkte Browser-Vorschläge ausdrücklich erlaubt.
+  Außenklick, Escape und Disconnect schließen die gemeinsame Listbox
+  race-sicher; öffentliches Nominatim bleibt submit-only.
   Kalender und Login-Apps sind ausgeschlossen.
 
 ## Konsummodell

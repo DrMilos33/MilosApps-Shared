@@ -1,5 +1,6 @@
 const CONTRACT_ID = "public-app-essentials/v1";
-const CONTRACT_VERSION = "1.1.3";
+const CONTRACT_VERSION = "1.1.4";
+const PLACE_SUGGESTION_CAPABILITIES = new Set(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]);
 const LOCALE_EVENT = "milosapps:localechange";
 const READY_EVENT = "milosapps:ready";
 
@@ -117,7 +118,7 @@ function normalizeConfig(input) {
   if (!placeSuggestions || typeof placeSuggestions !== "object") throw new TypeError("features.placeSuggestions is required");
   if (!Number.isInteger(placeSuggestions.minChars) || placeSuggestions.minChars < 2 || placeSuggestions.minChars > 6) throw new TypeError("placeSuggestions.minChars must be between 2 and 6");
   if (!Number.isInteger(placeSuggestions.debounceMs) || placeSuggestions.debounceMs < 200 || placeSuggestions.debounceMs > 1000) throw new TypeError("placeSuggestions.debounceMs must be between 200 and 1000");
-  if (placeSuggestions.enabled && placeSuggestions.providerCapability !== "consumer-autocomplete-proxy") throw new TypeError("enabled place suggestions require a consumer autocomplete proxy");
+  if (placeSuggestions.enabled && !PLACE_SUGGESTION_CAPABILITIES.has(placeSuggestions.providerCapability)) throw new TypeError("enabled place suggestions require an evidenced autocomplete capability");
   if (!placeSuggestions.enabled && placeSuggestions.providerCapability !== "submit-only") throw new TypeError("disabled place suggestions require submit-only mode");
   assertString(input.loading?.appName, "loading.appName");
   assertString(input.loading?.message?.de, "loading.message.de");
@@ -544,6 +545,14 @@ export function normalizeMilosPlaceResults(values) {
 export class MilosPlaceSearch extends HTMLElement {
   connectedCallback() {
     this.connectionEpoch = (this.connectionEpoch || 0) + 1;
+    this.resultsGeneration ??= 0;
+    this.onDocumentPointerDown ??= (event) => this.handleDocumentPointerDown(event);
+    const pointerDocument = this.ownerDocument || document;
+    if (this.pointerDocument && this.pointerDocument !== pointerDocument) {
+      this.pointerDocument.removeEventListener("pointerdown", this.onDocumentPointerDown, true);
+    }
+    this.pointerDocument = pointerDocument;
+    this.pointerDocument.addEventListener("pointerdown", this.onDocumentPointerDown, true);
     if (this.dataset.milosReady === "true") {
       this.setLocale(activeLocale);
       return;
@@ -611,10 +620,7 @@ export class MilosPlaceSearch extends HTMLElement {
     status.dataset.milosPlaceStatus = "";
     status.setAttribute("aria-live", "polite");
     input.addEventListener("input", () => {
-      this.cancelLocate();
-      this.cancelSearch();
-      this.renderResults([]);
-      this.clearOperationStatus();
+      this.dismissResults();
       this.queueSuggestions();
     });
     input.addEventListener("keydown", (event) => this.onKeyDown(event));
@@ -645,22 +651,23 @@ export class MilosPlaceSearch extends HTMLElement {
     }
     const requestId = this.searchRequestId;
     const connectionEpoch = this.connectionEpoch;
+    const resultsGeneration = this.resultsGeneration;
     this.searchController = new AbortController();
     const signal = this.searchController.signal;
     this.beginBusy("search", localeCopy().searching);
     try {
       const values = await this.searchProvider({ query, locale: activeLocale, signal });
       const currentQuery = this.input.value.trim().replace(/\s+/g, " ");
-      if (!this.isCurrentPlaceOperation("search", requestId, connectionEpoch, signal) || currentQuery !== query) return;
+      if (!this.isCurrentPlaceOperation("search", requestId, connectionEpoch, signal, resultsGeneration) || currentQuery !== query) return;
       this.results = normalizeMilosPlaceResults(values);
       this.renderResults(this.results);
       if (this.results.length) this.clearOperationStatus("search");
       else this.setOperationStatus("search", localeCopy().noResults);
     } catch (error) {
       const currentQuery = this.input.value.trim().replace(/\s+/g, " ");
-      if (error?.name !== "AbortError" && this.isCurrentPlaceOperation("search", requestId, connectionEpoch, signal) && currentQuery === query) this.setOperationStatus("search", localeCopy().searchFailed);
+      if (error?.name !== "AbortError" && this.isCurrentPlaceOperation("search", requestId, connectionEpoch, signal, resultsGeneration) && currentQuery === query) this.setOperationStatus("search", localeCopy().searchFailed);
     } finally {
-      if (this.isCurrentPlaceOperation("search", requestId, connectionEpoch, signal)) this.endBusy("search");
+      if (this.isCurrentPlaceOperation("search", requestId, connectionEpoch, signal, resultsGeneration)) this.endBusy("search");
     }
   }
 
@@ -680,7 +687,8 @@ export class MilosPlaceSearch extends HTMLElement {
     if (query.length < this.suggestionsConfig.minChars) return;
     const requestId = this.suggestionRequestId;
     const connectionEpoch = this.connectionEpoch;
-    this.suggestionTimer = setTimeout(() => this.runSuggestions(query, requestId, connectionEpoch), this.suggestionsConfig.debounceMs);
+    const resultsGeneration = this.resultsGeneration;
+    this.suggestionTimer = setTimeout(() => this.runSuggestions(query, requestId, connectionEpoch, resultsGeneration), this.suggestionsConfig.debounceMs);
   }
 
   cancelSuggestions() {
@@ -692,22 +700,22 @@ export class MilosPlaceSearch extends HTMLElement {
     this.clearOperationStatus("suggestions");
   }
 
-  async runSuggestions(query, requestId, connectionEpoch = this.connectionEpoch) {
-    if (!this.suggestionsProvider || !this.isCurrentPlaceOperation("suggestions", requestId, connectionEpoch)) return;
+  async runSuggestions(query, requestId, connectionEpoch = this.connectionEpoch, resultsGeneration = this.resultsGeneration) {
+    if (!this.suggestionsProvider || !this.isCurrentPlaceOperation("suggestions", requestId, connectionEpoch, undefined, resultsGeneration)) return;
     this.suggestionsController = new AbortController();
     const signal = this.suggestionsController.signal;
     this.beginBusy("suggestions");
     try {
       const values = await this.suggestionsProvider({ query, locale: activeLocale, signal });
       const currentQuery = this.input.value.trim().replace(/\s+/g, " ");
-      if (!this.isCurrentPlaceOperation("suggestions", requestId, connectionEpoch, signal) || currentQuery !== query) return;
+      if (!this.isCurrentPlaceOperation("suggestions", requestId, connectionEpoch, signal, resultsGeneration) || currentQuery !== query) return;
       this.results = normalizeMilosPlaceResults(values);
       this.renderResults(this.results);
     } catch (error) {
       const currentQuery = this.input.value.trim().replace(/\s+/g, " ");
-      if (error?.name !== "AbortError" && currentQuery === query && this.isCurrentPlaceOperation("suggestions", requestId, connectionEpoch, signal)) this.setOperationStatus("suggestions", localeCopy().searchFailed);
+      if (error?.name !== "AbortError" && currentQuery === query && this.isCurrentPlaceOperation("suggestions", requestId, connectionEpoch, signal, resultsGeneration)) this.setOperationStatus("suggestions", localeCopy().searchFailed);
     } finally {
-      if (this.isCurrentPlaceOperation("suggestions", requestId, connectionEpoch, signal)) this.endBusy("suggestions");
+      if (this.isCurrentPlaceOperation("suggestions", requestId, connectionEpoch, signal, resultsGeneration)) this.endBusy("suggestions");
     }
   }
 
@@ -718,18 +726,19 @@ export class MilosPlaceSearch extends HTMLElement {
     this.cancelLocate();
     const requestId = this.locateRequestId;
     const connectionEpoch = this.connectionEpoch;
+    const resultsGeneration = this.resultsGeneration;
     this.locateController = new AbortController();
     const signal = this.locateController.signal;
     this.beginBusy("locate", localeCopy().locating);
     try {
       const place = normalizePlace(await this.locateProvider({ locale: activeLocale, signal }));
-      if (!this.isCurrentPlaceOperation("locate", requestId, connectionEpoch, signal)) return;
+      if (!this.isCurrentPlaceOperation("locate", requestId, connectionEpoch, signal, resultsGeneration)) return;
       if (!place) throw new Error("Invalid located place");
       this.select(place);
     } catch (error) {
-      if (error?.name !== "AbortError" && this.isCurrentPlaceOperation("locate", requestId, connectionEpoch, signal)) this.setOperationStatus("locate", localeCopy().searchFailed);
+      if (error?.name !== "AbortError" && this.isCurrentPlaceOperation("locate", requestId, connectionEpoch, signal, resultsGeneration)) this.setOperationStatus("locate", localeCopy().searchFailed);
     } finally {
-      if (this.isCurrentPlaceOperation("locate", requestId, connectionEpoch, signal)) this.endBusy("locate");
+      if (this.isCurrentPlaceOperation("locate", requestId, connectionEpoch, signal, resultsGeneration)) this.endBusy("locate");
     }
   }
 
@@ -741,9 +750,28 @@ export class MilosPlaceSearch extends HTMLElement {
     this.clearOperationStatus("locate");
   }
 
-  isCurrentPlaceOperation(owner, requestId, connectionEpoch, signal) {
+  isCurrentPlaceOperation(owner, requestId, connectionEpoch, signal, resultsGeneration = this.resultsGeneration) {
     const currentId = owner === "search" ? this.searchRequestId : owner === "suggestions" ? this.suggestionRequestId : this.locateRequestId;
-    return this.isConnected && this.connectionEpoch === connectionEpoch && currentId === requestId && !signal?.aborted;
+    return this.isConnected && this.connectionEpoch === connectionEpoch && this.resultsGeneration === resultsGeneration && currentId === requestId && !signal?.aborted;
+  }
+
+  handleDocumentPointerDown(event) {
+    const path = typeof event.composedPath === "function" ? event.composedPath() : [];
+    const inside = path.length > 0 ? path.includes(this) : Boolean(this.contains?.(event.target));
+    if (!inside) this.dismissResults();
+  }
+
+  dismissResults() {
+    this.resultsGeneration = (this.resultsGeneration || 0) + 1;
+    this.cancelSuggestions();
+    this.cancelSearch();
+    this.cancelLocate();
+    if (this.resultsElement && this.input) this.renderResults([]);
+    else {
+      this.results = [];
+      this.activeIndex = -1;
+    }
+    this.clearOperationStatus();
   }
 
   beginBusy(owner, message = "") {
@@ -808,11 +836,7 @@ export class MilosPlaceSearch extends HTMLElement {
   onKeyDown(event) {
     if (event.key === "Escape") {
       event.preventDefault();
-      this.cancelSuggestions();
-      this.cancelSearch();
-      this.cancelLocate();
-      this.renderResults([]);
-      this.clearOperationStatus();
+      this.dismissResults();
       return;
     }
     if (!this.results.length) {
@@ -843,12 +867,8 @@ export class MilosPlaceSearch extends HTMLElement {
   }
 
   select(place) {
-    this.cancelSuggestions();
-    this.cancelSearch();
-    this.cancelLocate();
+    this.dismissResults();
     this.input.value = [place.name, place.region, place.country].filter(Boolean).join(", ");
-    this.renderResults([]);
-    this.clearOperationStatus();
     this.dispatchEvent(new CustomEvent("milosapps:placechange", { detail: place, bubbles: true, composed: true }));
     this.dispatchEvent(new Event("change", { bubbles: true }));
   }
@@ -856,11 +876,7 @@ export class MilosPlaceSearch extends HTMLElement {
   setLocale(locale) {
     const selected = normalizeLocale(locale);
     if (this.locale && this.locale !== selected) {
-      this.cancelSuggestions();
-      this.cancelSearch();
-      this.cancelLocate();
-      this.renderResults([]);
-      this.clearOperationStatus();
+      this.dismissResults();
     }
     this.locale = selected;
     const copy = COPY[selected];
@@ -871,10 +887,10 @@ export class MilosPlaceSearch extends HTMLElement {
   }
 
   disconnectedCallback() {
+    this.pointerDocument?.removeEventListener("pointerdown", this.onDocumentPointerDown, true);
+    this.pointerDocument = null;
     this.connectionEpoch = (this.connectionEpoch || 0) + 1;
-    this.cancelSuggestions();
-    this.cancelSearch();
-    this.cancelLocate();
+    this.dismissResults();
     this.busyOwners?.clear();
     this.syncBusyState();
     this.clearOperationStatus();

@@ -1,6 +1,6 @@
 # public-app-essentials/v1
 
-Version `1.1.3` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
+Version `1.1.4` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
 MilosApps: einen begrenzten Startzustand, einen wahrheitsgemäßen
 Datenschutzhinweis, Teilen, Datumsauswahl und Ort-/Regionssuche. Der Vertrag ist
 frameworkneutral und dependency-frei. Er ersetzt weder
@@ -255,9 +255,10 @@ Geocoding-Verbindung bleibt app-eigen und austauschbar. Ein Ergebnis enthält:
 }
 ```
 
-Eine Suche wird nur mit Enter oder der Suchen-Schaltfläche **explizit
-abgeschickt**. Der Baustein sendet keine Anfrage bei jedem Tastendruck. Das ist
-besonders wichtig für die öffentliche Nominatim-Instanz: deren Richtlinie
+Im standardmäßigen `submit-only`-Modus wird eine Suche nur mit Enter oder der
+Suchen-Schaltfläche **explizit abgeschickt**; dabei sendet der Baustein keine
+Anfrage während der Eingabe. Das ist besonders wichtig für die öffentliche
+Nominatim-Instanz: deren Richtlinie
 verbietet clientseitiges Autocomplete, begrenzt Nutzung und verlangt
 Attribution sowie eine austauschbare Verbindung. Apps müssen außerdem ihre
 fachlichen Suchgrenzen beibehalten; ein Wetterort und ein astronomischer Ort
@@ -267,14 +268,33 @@ dürfen dasselbe UI/Ergebnisformat nutzen, ohne ihre Berechnung gleichzusetzen.
 
 `submit-only` bleibt der Standard. Vorschläge während der Eingabe werden nur
 aktiviert, wenn das Manifest `placeSuggestions.enabled=true`, Mindestzeichen
-und Debounce deklariert sowie `providerCapability` auf
-`consumer-autocomplete-proxy` setzt. Zusätzlich nennt `evidenceFile` einen
-app-eigenen Nachweis und die Integration registriert ausdrücklich
-`setSuggestionsProvider(...)`.
+und Debounce deklariert sowie `providerCapability` auf genau eine der beiden
+geprüften Grenzen setzt:
+
+- `consumer-autocomplete-proxy`: ein app-eigener Proxy übernimmt Provider-,
+  Schlüssel-, Rate-Limit- und Datenschutzgrenzen.
+- `provider-autocomplete-direct`: der Provider erlaubt die direkte
+  browserseitige Eingabevorschlagsuche ausdrücklich; die App benötigt dafür
+  keine im Browser offengelegten Zugangsdaten.
+
+Zusätzlich nennt `evidenceFile` in beiden Fällen einen app-eigenen Nachweis und
+die Integration registriert ausdrücklich `setSuggestionsProvider(...)`. Der
+Nachweis eines direkten Providers hält mindestens den exakten credential-freien
+HTTPS-Endpunkt, offizielle Capability-Dokumentation, Browser-/CORS-Grenze,
+Nutzungsbereich, Rate-Limits, Datenquelle/Lizenz/Attribution, übermittelte
+Eingabedaten und Privacy, Cache-Lebensdauer sowie eine getrennte
+Production-Neubewertung fest. Der Verifier bindet Pfad und Vorhandensein; die
+inhaltliche Wahrheit fremder Richtlinien bleibt ein menschliches App- und
+Release-Gate.
 
 Der Baustein übernimmt Debounce, Abbruch vorheriger Anfragen, Unterdrückung
-veralteter Antworten und Tastaturführung. Ein Localewechsel bricht alte
-Provideroperationen ab; nach Auswahl bleiben Name, Region und Land sichtbar.
+veralteter Antworten und Tastaturführung. Combobox und Provider teilen genau
+eine über `aria-controls` zugeordnete Listbox. Escape, Auswahl, Disconnect und
+ein Außenklick beziehungsweise -pointer schließen das Popup vollständig; ein
+Pointer auf einer Option bleibt bis zum folgenden Auswahlklick race-sicher.
+Abort ignorierende Altantworten dürfen das geschlossene Popup nicht wieder
+öffnen. Ein Localewechsel bricht alte Provideroperationen ab; nach Auswahl
+bleiben Name, Region und Land sichtbar.
 Provider, Rate-Limit, Cache,
 Attribution und Zeitzone bleiben App-Eigentum. Direktes Autocomplete gegen
 `nominatim.openstreetmap.org` bleibt verboten; öffentliches Nominatim darf in
@@ -283,10 +303,18 @@ Suche vorkommen. Deshalb prüft der Verifier die separate Suggestions-
 Capability, deren Evidenzdatei und `setSuggestionsProvider(...)`, nicht ein
 pauschales Hostwort-Verbot über sämtlichen App-Code.
 
-## Migration von 1.0.0 bis 1.1.2 auf 1.1.3
+Öffentliches `nominatim.openstreetmap.org` kann die direkte Capability nicht
+wahrheitsgemäß belegen: dessen offizielle Richtlinie verbietet clientseitiges
+Autocomplete. Open-Meteos Geocoding-Endpunkt dokumentiert dagegen direkte
+Suche ab drei Zeichen; die freie API ist nur für nichtkommerzielle Nutzung und
+ihre veröffentlichten Limits bestimmt. Eine App darf das deshalb für ein
+entsprechend belegtes DEV verwenden, erhält dadurch aber keine pauschale
+Productionfreigabe. Das ist keine Rechtsberatung.
 
-1. `essentialsContract.version` auf `1.1.3` und `sharedCommit` auf den
-   unveränderlichen v1.1.3-Releasecommit setzen. `$schema` auf das vendorte
+## Migration von 1.0.0 bis 1.1.3 auf 1.1.4
+
+1. `essentialsContract.version` auf `1.1.4` und `sharedCommit` auf den
+   unveränderlichen v1.1.4-Releasecommit setzen. `$schema` auf das vendorte
    Schema umstellen, `vendorDirectory` als Repositorypfad,
    `runtimeBasePath` als tatsächlich ausgelieferten URL-Basispfad und
    `consumerEntryModule` mit physischer Integrationsdatei plus exakter
@@ -314,10 +342,14 @@ pauschales Hostwort-Verbot über sämtlichen App-Code.
 6. Bei `privacy.mode="essential-only"` `features.privacyNotice=true` behalten;
    Texte dürfen den Sachhinweis nicht als Einwilligung darstellen. Einen
    Dismiss-Key gibt es nicht mehr; die Schließaktion gilt nur im Dokument.
-7. Falls Vorschläge fachlich nötig sind: app-eigenen Autocomplete-Proxy
-   nachweisen, Evidenzdatei eintragen, `consumer-autocomplete-proxy` deklarieren
-   und separat `setSuggestionsProvider(...)` registrieren. Der normale
-   `setSearchProvider(...)` bleibt die explizite Submit-Suche.
+7. Falls Vorschläge fachlich nötig sind: entweder den app-eigenen
+   Autocomplete-Proxy mit `consumer-autocomplete-proxy` oder einen ausdrücklich
+   dafür erlaubten direkten Browserprovider mit `provider-autocomplete-direct`
+   nachweisen. Evidenzdatei eintragen und separat
+   `setSuggestionsProvider(...)` registrieren. Der normale
+   `setSearchProvider(...)` bleibt die explizite Submit-Suche. Für direkte
+   Provider bleiben Umgebung, Terms, Rate-Limits, Attribution, Privacy und
+   Productioneignung app-eigene Gates.
 8. `features.startup=true` setzen beziehungsweise beibehalten und die komplette
    statische Loaderstruktur ergänzen. Das App-Icon trägt im Quellmarkup
    `width="32" height="32"`; so bleibt auch der Zustand vor dem CSS-Laden
@@ -335,7 +367,8 @@ pauschales Hostwort-Verbot über sämtlichen App-Code.
    nach einem frischen Windows-Recheckout mit `core.autocrlf=true` erneut
    ausführen. Das schützt alle sechs bytegenauen Textartefakte.
 11. Share-Fallback/Fehler, Datum in schmaler Komponente, Select-Pfeilbereich,
-   Escape/Abort/Stale-Result, Localewechsel und Disconnect-Cleanup in der Verbraucher-
+   Escape/Abort/Stale-Result, genau eine Listbox, Außenklick, race-sichere
+   Auswahl, Localewechsel und Disconnect-Cleanup in der Verbraucher-
    Browsermatrix prüfen.
 
 Die Runtime entfernt bei der Migration nur

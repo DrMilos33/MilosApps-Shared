@@ -4,7 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.3";
+const VERSION = "1.1.4";
+const PLACE_SUGGESTION_CAPABILITIES = new Set(["consumer-autocomplete-proxy", "provider-autocomplete-direct"]);
 const SHELL_ID = "public-app-shell/v2";
 const SHELL_VERSION = "2.0.3";
 const SHELL_SHARED_COMMIT = "ed898412306e22c6ae1b10ee8953df29f8acd627";
@@ -911,7 +912,7 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   if (!Number.isInteger(suggestions.debounceMs) || suggestions.debounceMs < 200 || suggestions.debounceMs > 1000) fail("place suggestions require debounceMs between 200 and 1000");
   if (suggestions.enabled === true) {
     if (manifest.features?.placeSearch !== true) fail("place suggestions require placeSearch=true");
-    if (suggestions.providerCapability !== "consumer-autocomplete-proxy") fail("place suggestions require a consumer autocomplete proxy");
+    if (!PLACE_SUGGESTION_CAPABILITIES.has(suggestions.providerCapability)) fail("place suggestions require an evidenced autocomplete capability");
     if (typeof suggestions.evidenceFile !== "string" || !suggestions.evidenceFile.trim()) fail("place suggestions require provider evidence");
     const evidencePath = await confinedPath(appRoot, path.resolve(appRoot, suggestions.evidenceFile), "suggestions evidence");
     await requiredFile(evidencePath, "suggestions evidence");
