@@ -28,7 +28,17 @@ jobs:
       - name: Validate public app layout v1
         run: node contracts/public-app-layout/v1/tools/validate.mjs
       - name: Validate public app essentials v1
-        run: node contracts/public-app-essentials/v1/tools/validate.mjs
+        shell: pwsh
+        run: |
+          $release = Get-Content contracts/public-app-essentials/v1/release.json -Raw | ConvertFrom-Json
+          $releaseWorktree = Join-Path $env:RUNNER_TEMP "public-app-essentials-release"
+          git worktree add --detach $releaseWorktree $release.tag
+          try {
+            node (Join-Path $releaseWorktree "contracts/public-app-essentials/v1/tools/validate.mjs")
+          }
+          finally {
+            git worktree remove --force $releaseWorktree
+          }
 
   react-template:
     runs-on: ubuntu-latest
