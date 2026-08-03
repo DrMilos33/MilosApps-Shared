@@ -1,5 +1,5 @@
 const CONTRACT_ID = "public-app-essentials/v1";
-const CONTRACT_VERSION = "1.1.2";
+const CONTRACT_VERSION = "1.1.3";
 const LOCALE_EVENT = "milosapps:localechange";
 const READY_EVENT = "milosapps:ready";
 

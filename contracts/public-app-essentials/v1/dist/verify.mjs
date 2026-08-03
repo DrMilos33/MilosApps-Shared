@@ -4,7 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.2";
+const VERSION = "1.1.3";
+const SHELL_ID = "public-app-shell/v2";
+const SHELL_VERSION = "2.0.3";
+const SHELL_SHARED_COMMIT = "ed898412306e22c6ae1b10ee8953df29f8acd627";
+const SHELL_COMPONENT_SHA256 = "sha256:bff9c09ae64e453d186508a4372a1cacc17b4dcd30b770046c7f4efee53731b3";
 const CONSUMERS = new Set([
   "portal",
   "noodle-calculator",
@@ -22,6 +26,13 @@ const ARTIFACTS = [
   "bootstrap.js",
   "verify.mjs",
   "essentials-manifest.schema.json"
+];
+const SHELL_ARTIFACTS = [
+  "milos-app-shell.js",
+  "milos-app-shell.css",
+  "bootstrap.js",
+  "milos-app-shell-theme.css",
+  "verify.mjs"
 ];
 
 function fail(message) {
@@ -283,7 +294,7 @@ function skipRegexLiteral(source, start) {
   return index;
 }
 
-const PROTECTED_REGEX_EVIDENCE = /(?:<milos-(?:share-button|date-picker|place-search)\b|data-milos-privacy-info|globalThis\s*\.\s*milosAppEssentials\s*\.\s*ready\s*\(|\.\s*set(?:Payload|Search|Suggestions)Provider\s*\()/i;
+const PROTECTED_REGEX_EVIDENCE = /(?:<milos-(?:app-shell|share-button|date-picker|place-search)\b|data-milos-privacy-info|globalThis\s*\.\s*milosAppEssentials\s*\.\s*ready\s*\(|\.\s*set(?:Payload|Search|Suggestions)Provider\s*\()/i;
 
 function maskProtectedSlashSpans(value, allowJsx = false) {
   const source = String(value);
@@ -784,6 +795,71 @@ function validateStoragePurposes(manifest) {
   }
 }
 
+function canonicalShellPrivacyUrl(environment) {
+  return environment === "production"
+    ? "https://milos-apps.de/datenschutz"
+    : "https://dev.milos-apps.de/datenschutz";
+}
+
+async function verifyShellPermanentLink(appRoot, manifest, entryPath) {
+  const reference = manifest.privacy?.permanentLink;
+  if (!reference) return false;
+  if (manifest.privacy.mode !== "no-cookies") fail("privacy.permanentLink is only supported for no-cookies");
+  if (reference.provider !== SHELL_ID) fail("privacy.permanentLink requires public-app-shell/v2");
+  const shellManifestPath = await confinedPath(appRoot, path.resolve(appRoot, reference.manifest), "shell manifest");
+  const shellManifest = JSON.parse((await requiredFile(shellManifestPath, "shell manifest")).toString("utf8"));
+  if (shellManifest.appKey !== manifest.appKey) fail("shell manifest appKey must match the essentials manifest");
+  if (shellManifest.environment !== manifest.environment || shellManifest.productionApproved !== manifest.productionApproved) fail("shell manifest environment and production boundary must match the essentials manifest");
+  if (shellManifest.public !== true || shellManifest.loginRequired !== false) fail("shell manifest must describe the same public no-login surface");
+  if (shellManifest.shellContract?.id !== SHELL_ID || shellManifest.shellContract?.version !== SHELL_VERSION) fail("shell manifest must pin public-app-shell/v2.0.3");
+  const shellFixture = shellManifest.appKey === "reference-app" && /^0+$/.test(shellManifest.shellContract?.sharedCommit || "");
+  if (!shellFixture && shellManifest.shellContract?.sharedCommit !== SHELL_SHARED_COMMIT) fail("shell manifest must pin the immutable public-app-shell/v2.0.3 sharedCommit");
+  if (typeof shellManifest.shellContract?.vendorDirectory !== "string" || !shellManifest.shellContract.vendorDirectory.trim()) fail("shell manifest requires a vendorDirectory");
+  if (typeof shellManifest.shellContract?.localeModule !== "string" || !shellManifest.shellContract.localeModule.trim()) fail("shell manifest requires a localeModule");
+  const shellEntryPath = await confinedPath(appRoot, path.resolve(appRoot, shellManifest.shellContract.entryHtml), "shell entry HTML");
+  if (path.normalize(shellEntryPath) !== path.normalize(entryPath)) fail("shell and essentials manifests must name the same entry HTML");
+  if (manifest.privacy.privacyUrl !== canonicalShellPrivacyUrl(manifest.environment)) fail("shell-provided privacy link requires the canonical environment privacyUrl");
+
+  const shellVendorRoot = await confinedPath(appRoot, path.resolve(appRoot, shellManifest.shellContract.vendorDirectory), "shell vendor directory");
+  const shellLockPath = await confinedPath(appRoot, path.join(shellVendorRoot, "shell-lock.json"), "shell lock");
+  const shellLock = JSON.parse((await requiredFile(shellLockPath, "shell lock")).toString("utf8"));
+  if (shellLock.contract !== SHELL_ID || shellLock.version !== SHELL_VERSION) fail("shell lock contract/version mismatch");
+  if (shellLock.sharedCommit !== shellManifest.shellContract.sharedCommit) fail("shell lock/shared commit mismatch");
+  if (shellLock.appKey !== manifest.appKey) fail("shell lock/app key mismatch");
+  const relativeShellManifest = path.relative(appRoot, shellManifestPath).replaceAll(path.sep, "/");
+  if (shellLock.manifest !== relativeShellManifest) fail("shell lock/manifest path mismatch");
+  const shellVendorDirectory = shellManifest.shellContract.vendorDirectory.replaceAll("\\", "/").replace(/^\.\//, "");
+  if (shellLock.vendorDirectory !== shellVendorDirectory) fail("shell lock/vendor directory mismatch");
+  if (JSON.stringify(Object.keys(shellLock.artifacts || {}).sort()) !== JSON.stringify([...SHELL_ARTIFACTS].sort())) fail("shell lock artifact set mismatch");
+  const shellContents = new Map();
+  for (const artifact of SHELL_ARTIFACTS) {
+    const artifactPath = await confinedPath(appRoot, path.join(shellVendorRoot, artifact), `shell ${artifact}`);
+    const content = await requiredFile(artifactPath, `shell ${artifact}`);
+    if (sha256(content) !== shellLock.artifacts?.[artifact]) fail(`shell ${artifact} checksum mismatch`);
+    shellContents.set(artifact, content);
+  }
+  const shellComponent = shellContents.get("milos-app-shell.js").toString("utf8");
+  if (sha256(shellContents.get("milos-app-shell.js")) !== SHELL_COMPONENT_SHA256
+    || !shellComponent.includes('<a href="${links.privacy}" data-text="privacy">')
+    || !shellComponent.includes("https://dev.milos-apps.de/datenschutz")
+    || !shellComponent.includes("https://milos-apps.de/datenschutz")) {
+    fail("verified shell component must be the immutable v2.0.3 artifact with its canonical permanent privacy footer link");
+  }
+  const shellEntry = extractHtmlMarkup((await requiredFile(shellEntryPath, "shell entry HTML")).toString("utf8"));
+  if (htmlTags(shellEntry, "milos-app-shell").length !== 1) fail("shell-provided privacy information requires exactly one milos-app-shell in entry HTML");
+  const shellBootstrap = htmlTags(shellEntry, "script")
+    .map(({ source }) => source)
+    .find((source) => {
+      if ((attributeValue(source, "type") || "").toLowerCase() !== "module") return false;
+      const runtimePath = normalizedLocalUrl(attributeValue(source, "src"));
+      return runtimePath !== null && runtimePath.replace(/^\//, "").endsWith("milosapps-shell/v2/bootstrap.js");
+    });
+  if (!shellBootstrap) fail("shell-provided privacy information requires the locked local Shell bootstrap");
+  const shellLocalePath = await confinedPath(appRoot, path.resolve(appRoot, shellManifest.shellContract.localeModule), "shell locale module");
+  await requiredFile(shellLocalePath, "shell locale module");
+  return true;
+}
+
 export async function verifyEssentials(appRootInput, manifestInput) {
   const appRoot = await realpath(path.resolve(appRootInput));
   const manifestPath = await confinedPath(appRoot, path.resolve(appRoot, manifestInput), "manifest");
@@ -890,9 +966,18 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   const codeTokens = javascriptIntegrationSources.flatMap(({ raw, jsxFile }) => javascriptCodeTokens(jsxFile ? maskJsxText(raw) : raw, jsxFile));
   if (htmlTags(markupSources, "milos-share-button").length === 0) fail("shared share control is required");
   if (!hasMethodCall(codeTokens, "setPayloadProvider")) fail("shared share control requires an app-owned payload provider");
+  const shellProvidesPrivacyLink = await verifyShellPermanentLink(appRoot, manifest, entryPath);
   if (manifest.privacy?.mode === "no-cookies") {
-    const privacyLink = htmlTags(markupSources, "a").map(({ source }) => source).find((source) => hasAttribute(source, "data-milos-privacy-info") && attributeValue(source, "href") === manifest.privacy.privacyUrl);
-    if (!privacyLink) fail("no-cookies requires persistent consumer-owned privacy information linked to the exact manifest privacyUrl");
+    const allConsumerLinks = htmlTags(markupSources, "a").map(({ source }) => source);
+    const consumerPrivacyLinks = allConsumerLinks.filter((source) => hasAttribute(source, "data-milos-privacy-info"));
+    const exactPrivacyLinks = allConsumerLinks.filter((source) => attributeValue(source, "href") === manifest.privacy.privacyUrl);
+    const privacyLink = consumerPrivacyLinks.find((source) => attributeValue(source, "href") === manifest.privacy.privacyUrl);
+    if (shellProvidesPrivacyLink) {
+      if (consumerPrivacyLinks.length || exactPrivacyLinks.length) fail("shell-provided privacy information must not duplicate a consumer-owned privacy link");
+    } else if (!privacyLink) {
+      if (consumerPrivacyLinks.length) fail("persistent consumer-owned privacy information must link to the exact manifest privacyUrl");
+      fail("no-cookies requires persistent consumer-owned privacy information or a verified public-app-shell/v2 footer link");
+    }
   }
   if (manifest.features?.datePicker && htmlTags(markupSources, "milos-date-picker").length === 0) fail("enabled date picker is missing");
   if (manifest.features?.placeSearch && htmlTags(markupSources, "milos-place-search").length === 0) fail("enabled place search is missing");
@@ -910,9 +995,9 @@ export async function verifyEssentials(appRootInput, manifestInput) {
   await requiredFile(iconFile, "loading icon");
   const loadingIcon = htmlTags(entry, "img").map(({ source }) => source).find((source) => hasAttribute(source, "data-milos-loading-icon") && exactLocalUrlEquals(attributeValue(source, "src"), iconRuntimePath));
   if (!loadingIcon) fail("loading icon must use loading.iconRuntimePath or its iconPath fallback");
-  const width = Number(attributeValue(loadingIcon, "width"));
-  const height = Number(attributeValue(loadingIcon, "height"));
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 56 || height > 56) fail("loading icon needs explicit width/height no larger than 56");
+  const width = attributeValue(loadingIcon, "width");
+  const height = attributeValue(loadingIcon, "height");
+  if (width !== "32" || height !== "32") fail("loading icon needs explicit width/height of exactly 32");
   if (!hasCallPath(codeTokens, ["globalThis", "milosAppEssentials", "ready"])) fail("app must explicitly call the generated globalThis.milosAppEssentials.ready() API");
 
   return Object.freeze({ appKey: manifest.appKey, version: VERSION, vendorRoot, features: Object.freeze({ ...manifest.features }) });

@@ -46,10 +46,10 @@ milos-app-shell:not(:defined) > [slot="app-icon"] {
 }
 
 [data-milos-loading-icon] {
-  width: min(56px, 18vw) !important;
-  height: min(56px, 18vw) !important;
-  max-width: 56px !important;
-  max-height: 56px !important;
+  width: min(32px, 18vw) !important;
+  height: min(32px, 18vw) !important;
+  max-width: 32px !important;
+  max-height: 32px !important;
   display: block;
   object-fit: contain;
 }
@@ -270,12 +270,6 @@ milos-place-search [hidden] { display: none !important; }
 [data-milos-place-option] small { margin-block-start: 0.1rem; color: var(--milos-essential-muted); }
 
 @media (max-width: 34rem) {
-  [data-milos-loading-icon] {
-    width: min(48px, 18vw) !important;
-    height: min(48px, 18vw) !important;
-    max-width: 48px !important;
-    max-height: 48px !important;
-  }
   [data-milos-privacy-notice] { grid-template-columns: 1fr; }
   [data-milos-privacy-actions] { justify-content: flex-start; }
 }

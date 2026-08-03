@@ -6,7 +6,11 @@ import { fileURLToPath } from "node:url";
 import { schemaErrors } from "../dist/verify.mjs";
 
 const ID = "public-app-essentials/v1";
-const VERSION = "1.1.2";
+const VERSION = "1.1.3";
+const SHELL_ID = "public-app-shell/v2";
+const SHELL_VERSION = "2.0.3";
+const SHELL_SHARED_COMMIT = "ed898412306e22c6ae1b10ee8953df29f8acd627";
+const SHELL_COMPONENT_SHA256 = "sha256:bff9c09ae64e453d186508a4372a1cacc17b4dcd30b770046c7f4efee53731b3";
 const CONSUMERS = new Set([
   "portal",
   "noodle-calculator",
@@ -37,6 +41,13 @@ const SOURCE_RELEASE_ARTIFACTS = [
   "dist/verify.mjs",
   "essentials-manifest.schema.json",
   "tools/sync.mjs"
+];
+const SHELL_ARTIFACTS = [
+  "milos-app-shell.js",
+  "milos-app-shell.css",
+  "bootstrap.js",
+  "milos-app-shell-theme.css",
+  "verify.mjs"
 ];
 
 function fail(message) {
@@ -97,6 +108,65 @@ async function requiredFile(file, label) {
   } catch {
     fail(`${label} is missing: ${file}`);
   }
+}
+
+function canonicalShellPrivacyUrl(environment) {
+  return environment === "production"
+    ? "https://milos-apps.de/datenschutz"
+    : "https://dev.milos-apps.de/datenschutz";
+}
+
+async function verifyShellPermanentLink(appRoot, manifest) {
+  const reference = manifest.privacy?.permanentLink;
+  if (!reference) return;
+  if (manifest.privacy.mode !== "no-cookies") fail("privacy.permanentLink is only supported for no-cookies");
+  if (reference.provider !== SHELL_ID) fail("privacy.permanentLink requires public-app-shell/v2");
+  const shellManifestPath = await confinedPath(appRoot, path.resolve(appRoot, reference.manifest), "shell manifest");
+  const shellManifest = JSON.parse((await requiredFile(shellManifestPath, "shell manifest")).toString("utf8"));
+  if (shellManifest.appKey !== manifest.appKey) fail("shell manifest appKey must match the essentials manifest");
+  if (shellManifest.environment !== manifest.environment || shellManifest.productionApproved !== manifest.productionApproved) fail("shell manifest environment and production boundary must match the essentials manifest");
+  if (shellManifest.public !== true || shellManifest.loginRequired !== false) fail("shell manifest must describe the same public no-login surface");
+  if (shellManifest.shellContract?.id !== SHELL_ID || shellManifest.shellContract?.version !== SHELL_VERSION) fail("shell manifest must pin public-app-shell/v2.0.3");
+  const shellFixture = shellManifest.appKey === "reference-app" && /^0+$/.test(shellManifest.shellContract?.sharedCommit || "");
+  if (!shellFixture && shellManifest.shellContract?.sharedCommit !== SHELL_SHARED_COMMIT) fail("shell manifest must pin the immutable public-app-shell/v2.0.3 sharedCommit");
+  if (typeof shellManifest.shellContract?.vendorDirectory !== "string" || !shellManifest.shellContract.vendorDirectory.trim()) fail("shell manifest requires a vendorDirectory");
+  if (typeof shellManifest.shellContract?.localeModule !== "string" || !shellManifest.shellContract.localeModule.trim()) fail("shell manifest requires a localeModule");
+  const shellEntryPath = await confinedPath(appRoot, path.resolve(appRoot, shellManifest.shellContract.entryHtml), "shell entry HTML");
+  const essentialsEntryPath = await confinedPath(appRoot, path.resolve(appRoot, manifest.entryHtml), "essentials entry HTML");
+  if (path.normalize(shellEntryPath) !== path.normalize(essentialsEntryPath)) fail("shell and essentials manifests must name the same entry HTML");
+  if (manifest.privacy.privacyUrl !== canonicalShellPrivacyUrl(manifest.environment)) fail("shell-provided privacy link requires the canonical environment privacyUrl");
+
+  const shellVendorRoot = await confinedPath(appRoot, path.resolve(appRoot, shellManifest.shellContract.vendorDirectory), "shell vendor directory");
+  const shellLockPath = await confinedPath(appRoot, path.join(shellVendorRoot, "shell-lock.json"), "shell lock");
+  const shellLock = JSON.parse((await requiredFile(shellLockPath, "shell lock")).toString("utf8"));
+  if (shellLock.contract !== SHELL_ID || shellLock.version !== SHELL_VERSION) fail("shell lock contract/version mismatch");
+  if (shellLock.sharedCommit !== shellManifest.shellContract.sharedCommit) fail("shell lock/shared commit mismatch");
+  if (shellLock.appKey !== manifest.appKey) fail("shell lock/app key mismatch");
+  const relativeShellManifest = path.relative(appRoot, shellManifestPath).replaceAll(path.sep, "/");
+  if (shellLock.manifest !== relativeShellManifest) fail("shell lock/manifest path mismatch");
+  const shellVendorDirectory = shellManifest.shellContract.vendorDirectory.replaceAll("\\", "/").replace(/^\.\//, "");
+  if (shellLock.vendorDirectory !== shellVendorDirectory) fail("shell lock/vendor directory mismatch");
+  if (JSON.stringify(Object.keys(shellLock.artifacts || {}).sort()) !== JSON.stringify([...SHELL_ARTIFACTS].sort())) fail("shell lock artifact set mismatch");
+  const shellContents = new Map();
+  for (const artifact of SHELL_ARTIFACTS) {
+    const artifactPath = await confinedPath(appRoot, path.join(shellVendorRoot, artifact), `shell ${artifact}`);
+    const content = await requiredFile(artifactPath, `shell ${artifact}`);
+    if (sha256(content) !== shellLock.artifacts?.[artifact]) fail(`shell ${artifact} checksum mismatch`);
+    shellContents.set(artifact, content);
+  }
+  const shellComponent = shellContents.get("milos-app-shell.js").toString("utf8");
+  if (sha256(shellContents.get("milos-app-shell.js")) !== SHELL_COMPONENT_SHA256
+    || !shellComponent.includes('<a href="${links.privacy}" data-text="privacy">')
+    || !shellComponent.includes("https://dev.milos-apps.de/datenschutz")
+    || !shellComponent.includes("https://milos-apps.de/datenschutz")) {
+    fail("verified shell component must be the immutable v2.0.3 artifact with its canonical permanent privacy footer link");
+  }
+  const shellEntry = (await requiredFile(shellEntryPath, "shell entry HTML")).toString("utf8").replace(/<!--[\s\S]*?-->/g, "");
+  if ((shellEntry.match(/<milos-app-shell(?:\s|>)/gi) || []).length !== 1) fail("shell-provided privacy information requires exactly one milos-app-shell in entry HTML");
+  const shellBootstrapPattern = /<script\b(?=[^>]*\btype=["']module["'])(?=[^>]*\bsrc=["'](?:\.\/|\/)?(?:[A-Za-z0-9._~/-]+\/)?milosapps-shell\/v2\/bootstrap\.js["'])[^>]*>/i;
+  if (!shellBootstrapPattern.test(shellEntry)) fail("shell-provided privacy information requires the locked local Shell bootstrap");
+  const shellLocalePath = await confinedPath(appRoot, path.resolve(appRoot, shellManifest.shellContract.localeModule), "shell locale module");
+  await requiredFile(shellLocalePath, "shell locale module");
 }
 
 function sha256(content) {
@@ -261,6 +331,7 @@ export async function syncEssentials(options) {
   const manifest = JSON.parse(manifestContent.toString("utf8"));
   const manifestSchema = JSON.parse(await readFile(path.join(contractRoot, "essentials-manifest.schema.json"), "utf8"));
   validateManifest(manifest, manifestSchema, options["source-commit"], options.fixture === true);
+  await verifyShellPermanentLink(appRoot, manifest);
   if (options.fixture !== true) await verifySourceProvenance(options["source-commit"]);
 
   const vendorRoot = await confinedPath(appRoot, path.resolve(appRoot, manifest.essentialsContract.vendorDirectory), "vendor directory", true);

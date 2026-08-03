@@ -1,12 +1,12 @@
 {
   "id": "public-app-essentials/v1",
-  "version": "1.1.2",
-  "tag": "public-app-essentials-v1.1.2",
+  "version": "1.1.3",
+  "tag": "public-app-essentials-v1.1.3",
   "artifacts": {
-    "dist/milos-app-essentials.css": "sha256:4854809f96bc3965daf97aa041223a9068129d67ae6d3f1637262008143bde1e",
-    "dist/milos-app-essentials.js": "sha256:f8cb06a193dd795c45835a1a954fca25205ffa7a305410bf3c640308cf616001",
-    "dist/verify.mjs": "sha256:1254bf021bc76fa40508d921fd7eba1093cf8d17e75cf7cd9cc3d23f03fa703b",
-    "essentials-manifest.schema.json": "sha256:3a8372ee6b31ecf103e192cbe6935e3e3a755ae2f5c4814dd26a89a369f3c1df",
-    "tools/sync.mjs": "sha256:e3903eff8b9492b60ed63fd402082889b36ff78bc29e7b1011755fa855b2db7e"
+    "dist/milos-app-essentials.css": "sha256:5ef5c7c0478e9c127456d520986020c4bb841b3755e01cacc0a16c2dd023db59",
+    "dist/milos-app-essentials.js": "sha256:c3b629dabbd6ceb9027f2b2322f8af9a2aa9a1a6d69cdeba096a398f93773bf8",
+    "dist/verify.mjs": "sha256:128f978fa622c56dfe4fa24f513e5273e0966a9a6634ce3e7949adf04d8cbae3",
+    "essentials-manifest.schema.json": "sha256:c3e9c2acd293f7490a5aa28458302ffd2fb8942416021210c4ddc2a308a07b05",
+    "tools/sync.mjs": "sha256:82a063258a3ce91125034c074de2a15143b0e4783d7d7ecd7ad0a68e420af1dc"
   }
 }

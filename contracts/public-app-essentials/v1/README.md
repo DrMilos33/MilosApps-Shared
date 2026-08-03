@@ -1,6 +1,6 @@
 # public-app-essentials/v1
 
-Version `1.1.2` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
+Version `1.1.3` vereinheitlicht fünf wiederkehrende Interaktionen öffentlicher
 MilosApps: einen begrenzten Startzustand, einen wahrheitsgemäßen
 Datenschutzhinweis, Teilen, Datumsauswahl und Ort-/Regionssuche. Der Vertrag ist
 frameworkneutral und dependency-frei. Er ersetzt weder
@@ -78,7 +78,8 @@ ablehnen.
    sind für diese lokalen, bytegelockten Dateien unzulässig.
 4. Den Loader unmittelbar im `body` ausgeben. Das Icon ist app-eigen, erhält
    explizite `width`/`height`, muss als lokale SVG-Datei vorhanden sein und
-   bleibt höchstens 56 px groß. `loading.iconPath` benennt die physische Datei
+   ist im HTML-Fallback und nach dem CSS-Laden exakt 32 mal 32 px groß.
+   `loading.iconPath` benennt die physische Datei
    relativ zum App-Repository. Falls die ausgelieferte URL davon abweicht,
    benennt `loading.iconRuntimePath` exakt die Same-Origin-URL im `src`; fehlt
    das optionale Feld, verwendet der Verifier rückwärtskompatibel `iconPath`
@@ -89,7 +90,7 @@ ablehnen.
    ```html
    <section data-milos-app-loading role="status" aria-live="polite">
      <div data-milos-loading-card>
-       <img data-milos-loading-icon src="icon.svg" width="52" height="52" alt="">
+       <img data-milos-loading-icon src="icon.svg" width="32" height="32" alt="">
        <span data-milos-loading-brand>MilosApps</span>
        <p data-milos-loading-title>App-Name</p>
        <p data-milos-loading-message>App wird geöffnet …</p>
@@ -145,6 +146,28 @@ Das Verhalten folgt der im Manifest belegten technischen Realität:
   im Manifest zweckweise als technisch unbedingt erforderlich nachweist. Die
   App hält ihre wahrheitsgemäße Datenschutzinformation dauerhaft erreichbar
   und markiert den Link mit `data-milos-privacy-info`.
+  Wenn die App bereits `public-app-shell/v2.0.3` verwendet, darf stattdessen
+  dessen sichtbarer Footerlink der einzige dauerhafte Datenschutzweg sein. Dazu
+  referenziert das Essentials-Manifest das separat verifizierte Shell-Manifest:
+
+  ```json
+  "privacy": {
+    "mode": "no-cookies",
+    "privacyUrl": "https://dev.milos-apps.de/datenschutz",
+    "permanentLink": {
+      "provider": "public-app-shell/v2",
+      "manifest": "milos-app.json"
+    }
+  }
+  ```
+
+  Der Verifier bindet App-Key, Umgebung, Productiongrenze und Entry beider
+  Manifeste, verlangt genau ein `<milos-app-shell>` und die kanonische
+  Datenschutz-URL der Umgebung. Ein zusätzlicher `data-milos-privacy-info`-Link
+  ist in diesem Modus unzulässig. Der App-Browsernachweis prüft außerdem den
+  sichtbaren Shadow-DOM-Link `.footer-nav a[data-text="privacy"]`; der normale
+  Shell-v2-Verifier bleibt verpflichtend. Beliebige CSS-Selektoren, versteckte
+  Marker oder nicht verifizierte Footer werden nicht als Nachweis akzeptiert.
 - `essential-only`: ein kompakter Sachhinweis zu technisch notwendigen Cookies,
   kein Einwilligungsdialog. Die einzige Aktion schließt den Hinweis; sie heißt
   weder „Akzeptieren“ noch „Verstanden“. Datenschutz bleibt zusätzlich über
@@ -260,10 +283,10 @@ Suche vorkommen. Deshalb prüft der Verifier die separate Suggestions-
 Capability, deren Evidenzdatei und `setSuggestionsProvider(...)`, nicht ein
 pauschales Hostwort-Verbot über sämtlichen App-Code.
 
-## Migration von 1.0.0, 1.1.0 oder 1.1.1 auf 1.1.2
+## Migration von 1.0.0 bis 1.1.2 auf 1.1.3
 
-1. `essentialsContract.version` auf `1.1.2` und `sharedCommit` auf den
-   unveränderlichen v1.1.2-Releasecommit setzen. `$schema` auf das vendorte
+1. `essentialsContract.version` auf `1.1.3` und `sharedCommit` auf den
+   unveränderlichen v1.1.3-Releasecommit setzen. `$schema` auf das vendorte
    Schema umstellen, `vendorDirectory` als Repositorypfad,
    `runtimeBasePath` als tatsächlich ausgelieferten URL-Basispfad und
    `consumerEntryModule` mit physischer Integrationsdatei plus exakter
@@ -279,8 +302,11 @@ pauschales Hostwort-Verbot über sämtlichen App-Code.
    `enabled=false`, `minChars=3`, `debounceMs=350`,
    `providerCapability="submit-only"`, `evidenceFile=null`.
 4. Bei `privacy.mode="no-cookies"` `features.privacyNotice=false` setzen und
-   einen dauerhaft erreichbaren Link mit `data-milos-privacy-info` sowie der
-   exakten `privacyUrl` ausgeben. Es entsteht kein Banner und kein Dismiss-Key.
+   entweder einen dauerhaft erreichbaren Link mit `data-milos-privacy-info`
+   sowie der exakten `privacyUrl` ausgeben oder über `privacy.permanentLink`
+   das passende `public-app-shell/v2.0.3`-Manifest referenzieren. Im zweiten
+   Fall bleibt ausschließlich der sichtbare Shell-Footerlink; ein doppelter
+   App-Link, Banner oder Dismiss-Key entsteht nicht.
 5. `privacy.storagePurposes` ergänzen. Bei `usesLocalStorage=true` jeden
    app-eigenen Schlüssel mit Zweck, Lebensdauer und `strictlyNecessary=true`
    deklarieren; optionale Zwecke sind in v1.1 nicht zulässig. Bei
@@ -293,7 +319,9 @@ pauschales Hostwort-Verbot über sämtlichen App-Code.
    und separat `setSuggestionsProvider(...)` registrieren. Der normale
    `setSearchProvider(...)` bleibt die explizite Submit-Suche.
 8. `features.startup=true` setzen beziehungsweise beibehalten und die komplette
-   statische Loaderstruktur ergänzen. Beide Essentials-CSS-Dateien stehen vor
+   statische Loaderstruktur ergänzen. Das App-Icon trägt im Quellmarkup
+   `width="32" height="32"`; so bleibt auch der Zustand vor dem CSS-Laden
+   kompakt. Beide Essentials-CSS-Dateien stehen vor
    allen Modulskripten. Erst bei echter Fachbereitschaft ruft der App-Code
    `globalThis.milosAppEssentials.ready()` auf; ein altes, direkt dispatchtes
    Ready-Event reicht nicht. Das gilt ausdrücklich auch für Portal-v1.0-
@@ -318,8 +346,9 @@ werden nicht in den neuen Essential-Hinweiszustand übernommen.
 
 ## Pflicht-QA pro Verbraucher
 
-- frischer Start und langsamer Start: Icon höchstens 56 px Desktop / 48 px
-  mobil, kein ungestylter Shell-Icon-Flash; Loader verschwindet erst nach
+- frischer Start und langsamer Start: Icon exakt 32 mal 32 px in Quellmarkup,
+  auf Desktop, mobil und bei 200 Prozent sowie vor und nach dem CSS-Laden; kein
+  ungestylter Shell-Icon-Flash; Loader verschwindet erst nach
   `globalThis.milosAppEssentials.ready()` und tatsächlich fertiger App; die
   effektive `iconRuntimePath`-URL liefert Same-Origin HTTP 200 mit
   `image/svg+xml`, und ihr dekodierter Antwortinhalt stimmt per SHA-256 mit
@@ -329,8 +358,10 @@ werden nicht in den neuen Essential-Hinweiszustand übernommen.
   ist 200 mit gültigem JavaScript-MIME und das Modul führt ohne Konsolenfehler
   aus. Ein gehashter Buildname wird nicht ins Shared-Manifest zurückgeschrieben;
 - Datenschutzmodus in DE/EN: `no-cookies` ohne Banner/State mit dauerhaftem
-  Link auf die exakte Manifest-`privacyUrl`; `essential-only` als Sachhinweis
-  ohne Consent-Sprache;
+  Link auf die exakte Manifest-`privacyUrl`; bei Shell-Nachweis genau ein
+  sichtbarer Footerlink, passender App-/Umgebungs-/Entry-Vertrag und zusätzlich
+  grüner Shell-v2-Verifier; `essential-only` als Sachhinweis ohne
+  Consent-Sprache;
 - Teilen nativ sowie Clipboard-Fallback und abgebrochener Dialog; keine
   Layoutverschiebung und keine Erfolgsmeldung nach nativem Teilen; ausstehende
   Promises dürfen nach Disconnect/Reconnect weder Status noch Events ändern;

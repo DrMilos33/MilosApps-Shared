@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## public-app-essentials 1.1.3 – 2026-08-03
+
+- Das gemeinsame App-Ladeicon ist im HTML-Fallback, in der CSS-Runtime und im
+  portablen Verifier einheitlich auf 32 mal 32 Pixel begrenzt. Die Grenze gilt
+  auf Desktop, Mobil und im 200-Prozent-Reflow bereits vor dem Laden der CSS.
+- Loaderkarte, Ready-Lifecycle, Privacy, Share, Date, Place, CSP, MIME,
+  Iconpfade und die sechs Verbraucherartefakte bleiben unverändert aufgebaut.
+- Für `no-cookies` darf der dauerhafte Datenschutzweg alternativ durch den
+  bereits sichtbaren Footer von `public-app-shell/v2.0.3` belegt werden. Die
+  App referenziert dazu ihr Shell-Manifest; App-Key, Umgebung, Entry, kanonische
+  URL und separate Shell-Verifikation werden fail-closed gebunden. Ein
+  zusätzlicher oder versteckter App-Link ist dann ausdrücklich unzulässig.
+- Jede öffentliche App übernimmt den Patch weiterhin atomar im eigenen
+  DEV-Lifecycle.
+
 ## public-app-essentials 1.1.2 – 2026-08-03
 
 - `loading.iconPath` bleibt der physische, app-eigene SVG-Quellpfad;

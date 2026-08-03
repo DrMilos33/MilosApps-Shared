@@ -29,10 +29,13 @@ Integrationsverträge.
   allgemeiner, CSP-sicher vendorter Interaktionsbaukasten für einen begrenzten
   Loading Screen, wahrheitsgemäße Datenschutzmodi, layoutstabiles Teilen,
   komponentenbreitenabhängige Datumsauswahl und eine providerneutrale
-  Ort-/Regionssuche. Version 1.1.2 zeigt bei `no-cookies` keinen Banner,
+  Ort-/Regionssuche. Version 1.1.3 begrenzt das App-Ladeicon in Markup und CSS
+  einheitlich auf 32 mal 32 Pixel. Sie zeigt bei `no-cookies` keinen Banner,
   hält natives Teilen visuell still, erzwingt den Startup-Vertrag und
   validiert Schema, Release-Provenienz sowie Provider-Lebenszyklen fail-closed.
-  Physischer Icon-Quellpfad und öffentliche Same-Origin-URL können bei
+  Ein bereits verifizierter `public-app-shell/v2`-Footer kann den permanenten
+  No-Cookies-Datenschutzweg ohne doppelten App-Link bereitstellen. Physischer
+  Icon-Quellpfad und öffentliche Same-Origin-URL können bei
   geroutetem Hosting getrennt deklariert werden.
   Vorschläge bleiben an einen expliziten app-eigenen Proxy-Nachweis gebunden.
   Kalender und Login-Apps sind ausgeschlossen.

@@ -6,10 +6,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertImmutableReleaseCommit, syncEssentials } from "./sync.mjs";
 import { schemaErrors, verifyEssentials } from "../dist/verify.mjs";
+import { verifyApp as verifyShellApp } from "../../../public-app-shell/v2/dist/verify.mjs";
 import { validateLifecycle } from "./lifecycle-regression.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = path.join(root, "fixtures", "reference-app");
+const shellFixtureRoot = path.resolve(root, "../../public-app-shell/v2/fixtures/reference-app");
 const zeroCommit = "0".repeat(40);
 const expectedConsumers = ["portal", "noodle-calculator", "sky", "cloud-post", "somewhere-now", "gravity-loop", "waste-guide", "daylight"].sort();
 const expectedReleaseArtifacts = ["dist/milos-app-essentials.css", "dist/milos-app-essentials.js", "dist/verify.mjs", "essentials-manifest.schema.json", "tools/sync.mjs"].sort();
@@ -54,14 +56,16 @@ const verifier = await readFile(path.join(root, "dist", "verify.mjs"));
 const syncContent = await readFile(path.join(root, "tools", "sync.mjs"));
 const syncText = syncContent.toString("utf8");
 const readme = await readFile(path.join(root, "README.md"), "utf8");
+const referenceEntry = await readFile(path.join(fixtureRoot, "index.html"), "utf8");
+const referenceFallback = await readFile(path.join(fixtureRoot, "loading.html"), "utf8");
 
-assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.2", "contract id/version");
+assert(contract.id === "public-app-essentials/v1" && contract.version === "1.1.3", "contract id/version");
 assert(contract.status === "stable", "stable contract status");
 assert(schemaErrors(schema, contract).length === 0, "contract validates against its schema");
 assert(schema.properties.id.const === contract.id && schema.properties.version.const === contract.version, "contract schema pins id/version");
 assert(JSON.stringify([...contract.eligibleConsumers].sort()) === JSON.stringify(expectedConsumers), "exact eligible consumers");
 assert(contract.excludedConsumers.includes("calendar") && contract.excludedClasses.includes("login-required-app"), "calendar and login apps excluded");
-assert(contract.modules.startup.iconMaxPx === 56 && contract.modules.startup.iconMaxMobilePx === 48, "bounded startup icon");
+assert(contract.modules.startup.iconMaxPx === 32 && contract.modules.startup.iconMaxMobilePx === 32 && contract.quality.startupIconMaxPx === 32, "uniform 32px startup icon");
 assert(contract.delivery.loadingIconSourceRuntimeSeparationSupported && contract.modules.startup.iconSourcePathField === "loading.iconPath" && contract.modules.startup.iconRuntimePathField === "loading.iconRuntimePath" && contract.modules.startup.iconRuntimePathFallback === "loading.iconPath", "loading icon source and runtime paths are distinct with a compatible fallback");
 assert(contract.delivery.consumerEntryRuntimePathScope === "declared-source-entry-html" && contract.delivery.consumerBuildRuntimeVerificationRequired && contract.quality.builtConsumerEntryHttpQaRequired, "source entry path and generated build runtime are verified at their proper boundaries");
 assert(contract.modules.startup.runtimeIconResponseQaRequired && contract.modules.startup.runtimeIconContentType === "image/svg+xml" && contract.modules.startup.runtimeIconSourceSha256MatchRequired, "consumer QA proves the routed icon response and source identity");
@@ -69,6 +73,7 @@ assert(contract.modules.startup.readyApi === "globalThis.milosAppEssentials.read
 assert(contract.modules.privacyNotice.privacyInformationRequired === true && contract.modules.privacyNotice.runtimeNoticeRequiredByMode["no-cookies"] === false && contract.modules.privacyNotice.runtimeNoticeRequiredByMode["essential-only"] === true, "persistent privacy information is distinct from the mode-dependent runtime notice");
 assert(contract.modules.privacyNotice.fakeConsentForbidden && contract.modules.privacyNotice.optionalTrackingAllowed === false, "truthful privacy notice");
 assert(contract.modules.privacyNotice.optionalDeviceStorageAllowed === false && contract.modules.privacyNotice.storagePurposeDeclarationRequired && contract.modules.privacyNotice.storagePurposesMustBeStrictlyNecessary && contract.modules.privacyNotice.consentContractIncluded === false, "device storage is purpose-bound without implied consent");
+assert(JSON.stringify(contract.modules.privacyNotice.permanentLinkEvidence) === JSON.stringify(["consumer-owned-link", "public-app-shell/v2"]) && contract.modules.privacyNotice.shellFooterManifestReferenceField === "privacy.permanentLink.manifest" && contract.modules.privacyNotice.shellFooterRequiresMatchingAppEnvironmentEntryAndCanonicalUrl && contract.modules.privacyNotice.shellFooterRequiresSeparateShellVerification, "permanent privacy information can reuse the verified Shell v2 footer without duplication");
 assert(contract.modules.privacyNotice.noCookiesBehavior === "no-banner-no-dismiss-state-persistent-consumer-info", "no-cookies has no banner or dismiss state");
 assert(contract.modules.privacyNotice.essentialOnlyBehavior === "informational-dismissible-not-consent" && contract.modules.privacyNotice.dismissPersistence === "document-only", "essential-only is informational without optional persistence");
 assert(contract.modules.share.nativeApi === "navigator.share" && contract.modules.share.fallback === "clipboard", "share strategy");
@@ -86,6 +91,7 @@ assert(contract.delivery.manifestSchemaLocked && contract.delivery.manifestConfi
 assert(JSON.stringify(contract.delivery.runtimeAssets.map(({ file }) => file)) === JSON.stringify(expectedRuntimeArtifacts), "exact four browser runtime artifacts");
 assert(contract.quality.adaptiveThemeCustomPropertyPattern === "var(--[a-z0-9]+(?:-[a-z0-9]+)*)", "safe adaptive theme custom properties are explicit");
 assert(manifestSchema.required.includes("$schema") && manifestSchema.properties.$schema.type === "string", "manifest requires its vendored schema declaration");
+assert(manifestSchema.properties.privacy.properties.permanentLink.properties.provider.const === "public-app-shell/v2", "manifest schema offers only the verified Shell v2 permanent-link provider");
 assert(schemaErrors(manifestSchema, example).length === 0, "example validates against the complete manifest schema");
 assert(Object.keys(example).every((key) => Object.hasOwn(manifestSchema.properties, key)), "example uses schema properties only");
 assert(example.public === true && example.loginRequired === false && example.productionApproved === false, "example public DEV boundary");
@@ -93,7 +99,7 @@ assert(example.privacy.optionalTracking === false && example.features.privacyNot
 assert(example.privacy.usesLocalStorage && example.privacy.storagePurposes.length === 1 && example.privacy.storagePurposes[0].strictlyNecessary === true, "example declares necessary app storage purpose");
 assert(example.features.placeSuggestions.enabled === false && example.features.placeSuggestions.providerCapability === "submit-only", "example defaults to submit-only place search");
 assert(example.$schema === "./vendor/milosapps-essentials/v1/essentials-manifest.schema.json" && example.essentialsContract.runtimeBasePath === "vendor/milosapps-essentials/v1" && example.consumerEntryModule.sourceFile === "app.js" && example.consumerEntryModule.runtimePath === "app.js" && example.loading.iconPath === "icon.svg" && example.loading.iconRuntimePath === "icon.svg", "example uses its locked schema and explicit runtime/consumer/icon paths");
-assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.2", "release identity");
+assert(release.id === contract.id && release.version === contract.version && release.tag === "public-app-essentials-v1.1.3", "release identity");
 assert(JSON.stringify(Object.keys(release.artifacts || {}).sort()) === JSON.stringify(expectedReleaseArtifacts), "exact release source artifact set");
 assert(release.artifacts["dist/milos-app-essentials.css"] === digest(css), "release CSS hash");
 assert(release.artifacts["dist/milos-app-essentials.js"] === digest(runtime), "release runtime hash");
@@ -106,8 +112,8 @@ await expectFailure(() => assertImmutableReleaseCommit("b".repeat(40), "a".repea
 const cssText = css.toString("utf8");
 for (const marker of [
   "milos-app-shell:not(:defined) > [slot=\"app-icon\"]",
-  "width: min(56px, 18vw)",
-  "max-width: 48px",
+  "width: min(32px, 18vw)",
+  "max-width: 32px",
   "data-milos-app-loading",
   "data-milos-privacy-notice",
   "min-height: var(--milos-essential-target)",
@@ -121,6 +127,10 @@ for (const marker of [
   "data-milos-place-results",
   "prefers-reduced-motion: reduce"
 ]) assert(cssText.includes(marker), `runtime CSS marker: ${marker}`);
+assert(!/min\((?:48|56)px,\s*18vw\)|max-(?:width|height):\s*(?:48|56)px/.test(cssText), "legacy loader icon sizes are absent");
+for (const [label, source] of [["reference entry", referenceEntry], ["HTML-before-CSS fallback", referenceFallback]]) {
+  assert(source.includes('<img data-milos-loading-icon src="icon.svg" width="32" height="32" alt="">'), `${label} starts with an exact 32px loading icon`);
+}
 assert(!cssText.includes("min-width: 20rem"), "fixed viewport floor forbidden");
 const shareStatusCss = cssText.match(/\[data-milos-share-status\]\s*\{([^}]*)\}/s)?.[1] || "";
 assert(shareStatusCss.includes("position: fixed") && shareStatusCss.includes("safe-area-inset-left") && shareStatusCss.includes("safe-area-inset-bottom"), "share feedback is viewport-fixed and safe-area bounded");
@@ -151,14 +161,15 @@ assert(runtimeText.includes('storageRemove(`milosapps.${activeConfig.appKey}.pri
 assert(runtimeText.includes("normalizeStoragePurposes") && runtimeText.includes("Optional device storage is forbidden"), "runtime rejects undeclared or optional device storage");
 assert(verifier.toString("utf8").includes('manifest.privacy?.mode !== "no-cookies"'), "verifier enumerates privacy modes");
 assert(verifier.toString("utf8").includes("validateStoragePurposes") && verifier.toString("utf8").includes("optional device storage is forbidden"), "verifier rejects optional device storage");
+assert(verifier.toString("utf8").includes('width !== "32" || height !== "32"') && verifier.toString("utf8").includes("exactly 32") && !verifier.toString("utf8").includes('Number(attributeValue(loadingIcon'), "verifier requires exact raw 32px fallback dimensions");
 assert(syncText.includes('execFileSync("git"') && syncText.includes("does not match --source-commit") && syncText.includes("release checksum mismatch"), "sync verifies Git-object and release provenance");
-assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0, 1.1.0 oder 1.1.1 auf 1.1.2") && readme.includes("runtimeBasePath") && readme.includes("Modul-URL im deklarierten Quell-`entryHtml`") && readme.includes("loading.iconRuntimePath") && readme.includes("image/svg+xml") && readme.includes("SHA-256") && readme.includes("Post-Build-/HTTP-Gate") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains source/build entry boundaries, icon response QA, readiness, privacy, LF and provider boundaries without the legacy event recipe");
+assert(readme.includes("kein Einwilligungsbanner") && readme.includes("Migration von 1.0.0 bis 1.1.2 auf 1.1.3") && readme.includes('width="32" height="32"') && readme.includes("privacy.permanentLink") && readme.includes("public-app-shell/v2") && readme.includes("runtimeBasePath") && readme.includes("Modul-URL im deklarierten Quell-`entryHtml`") && readme.includes("loading.iconRuntimePath") && readme.includes("image/svg+xml") && readme.includes("SHA-256") && readme.includes("Post-Build-/HTTP-Gate") && readme.includes("globalThis.milosAppEssentials.ready()") && !readme.includes('new CustomEvent("milosapps:ready")') && readme.includes("consumer-autocomplete-proxy") && readme.includes("pauschales Hostwort-Verbot") && readme.includes("keine Rechtsberatung") && readme.includes("core.autocrlf=true"), "README explains 32px fallback, verified Shell privacy evidence, source/build entry boundaries, icon response QA, readiness, LF and provider boundaries without the legacy event recipe");
 
 const lifecycleAssertions = await validateLifecycle(new URL("../dist/milos-app-essentials.js", import.meta.url));
 assert(lifecycleAssertions >= 27, "deterministic lifecycle, privacy, date and provider regressions");
 
 const fixture = await verifyEssentials(fixtureRoot, "essentials-manifest.json");
-assert(fixture.appKey === "reference-app" && fixture.version === "1.1.2", "reference fixture verifies");
+assert(fixture.appKey === "reference-app" && fixture.version === "1.1.3", "reference fixture verifies");
 const fixtureLock = await json("fixtures/reference-app/vendor/milosapps-essentials/v1/essentials-lock.json");
 assert(JSON.stringify(Object.keys(fixtureLock.artifacts || {}).sort()) === JSON.stringify(expectedConsumerArtifacts), "exact consumer lock artifact set");
 assert(fixtureLock.loadingIconRuntimePath === fixtureManifest.loading.iconRuntimePath, "loading icon runtime path is locked");
@@ -711,7 +722,128 @@ try {
   const missingPrivacyEntryPath = path.join(missingPrivacyInfoRoot, "index.html");
   const missingPrivacyEntry = await readFile(missingPrivacyEntryPath, "utf8");
   await writeFile(missingPrivacyEntryPath, missingPrivacyEntry.replace("data-milos-privacy-info", "data-app-privacy-info"), "utf8");
-  await expectFailure(() => verifyEssentials(missingPrivacyInfoRoot, "essentials-manifest.json"), /persistent consumer-owned privacy information/, "missing persistent privacy info");
+  await expectFailure(() => verifyEssentials(missingPrivacyInfoRoot, "essentials-manifest.json"), /persistent consumer-owned privacy information or a verified public-app-shell/, "missing persistent privacy info");
+
+  const inertShellPrivacyRoot = path.join(tempRoot, "inert-shell-privacy-info");
+  await cp(fixtureRoot, inertShellPrivacyRoot, { recursive: true });
+  const inertShellPrivacyManifestPath = path.join(inertShellPrivacyRoot, "essentials-manifest.json");
+  const inertShellPrivacyManifest = JSON.parse(await readFile(inertShellPrivacyManifestPath, "utf8"));
+  inertShellPrivacyManifest.privacy.permanentLink = { provider: "public-app-shell/v2", manifest: "milos-app.json" };
+  await writeFile(inertShellPrivacyManifestPath, `${JSON.stringify(inertShellPrivacyManifest, null, 2)}\n`, "utf8");
+  await writeFile(path.join(inertShellPrivacyRoot, "milos-app.json"), `${JSON.stringify({
+    appKey: "reference-app",
+    public: true,
+    loginRequired: false,
+    environment: "dev",
+    productionApproved: false,
+    shellContract: { id: "public-app-shell/v2", version: "2.0.3", entryHtml: "index.html" }
+  }, null, 2)}\n`, "utf8");
+  const inertShellPrivacyEntryPath = path.join(inertShellPrivacyRoot, "index.html");
+  await writeFile(inertShellPrivacyEntryPath, (await readFile(inertShellPrivacyEntryPath, "utf8"))
+    .replace(/\s*<a data-milos-privacy-info[^>]*>[^<]*<\/a>\s*/, "\n")
+    .replace("<main>", '<milos-app-shell>\n    <main slot="main">')
+    .replace("</main>", "</main>\n    </milos-app-shell>"), "utf8");
+  await expectFailure(
+    () => syncEssentials({ "app-root": inertShellPrivacyRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }),
+    /sharedCommit|vendorDirectory|localeModule|shell lock/i,
+    "inert Shell tag and minimal manifest cannot impersonate permanent footer privacy evidence"
+  );
+
+  const shellPrivacyRoot = path.join(tempRoot, "shell-privacy-info");
+  await cp(fixtureRoot, shellPrivacyRoot, { recursive: true });
+  const shellPrivacyManifestPath = path.join(shellPrivacyRoot, "essentials-manifest.json");
+  const shellPrivacyManifest = JSON.parse(await readFile(shellPrivacyManifestPath, "utf8"));
+  shellPrivacyManifest.privacy.permanentLink = { provider: "public-app-shell/v2", manifest: "milos-app.json" };
+  await writeFile(shellPrivacyManifestPath, `${JSON.stringify(shellPrivacyManifest, null, 2)}\n`, "utf8");
+  await cp(path.join(shellFixtureRoot, "milos-app.json"), path.join(shellPrivacyRoot, "milos-app.json"));
+  await mkdir(path.join(shellPrivacyRoot, "vendor", "milosapps-shell"), { recursive: true });
+  await cp(path.join(shellFixtureRoot, "vendor", "milosapps-shell", "v2"), path.join(shellPrivacyRoot, "vendor", "milosapps-shell", "v2"), { recursive: true });
+  const shellPrivacyEntryPath = path.join(shellPrivacyRoot, "index.html");
+  const shellPrivacyEntry = (await readFile(shellPrivacyEntryPath, "utf8"))
+    .replace(/\s*<a data-milos-privacy-info[^>]*>[^<]*<\/a>\s*/, "\n")
+    .replace("<main>", '<milos-app-shell>\n      <svg slot="app-icon" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18"></circle></svg>\n    <main slot="main">')
+    .replace('    <script type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"></script>', '    <script type="module" src="vendor/milosapps-essentials/v1/bootstrap.js"></script>\n    <script type="module" src="vendor/milosapps-shell/v2/bootstrap.js"></script>')
+    .replace("</main>", "</main>\n    </milos-app-shell>");
+  await writeFile(shellPrivacyEntryPath, shellPrivacyEntry, "utf8");
+  const shellPrivacyAppPath = path.join(shellPrivacyRoot, "app.js");
+  await writeFile(shellPrivacyAppPath, `${await readFile(shellPrivacyAppPath, "utf8")}\nconst shellLocales = { de: {}, en: {} };\nwindow.addEventListener("milosapps:localechange", ({ detail }) => { document.documentElement.lang = shellLocales[detail.locale] ? detail.locale : "de"; });\ndocument.documentElement.lang = shellLocales[document.documentElement.lang] ? document.documentElement.lang : "de";\n`, "utf8");
+  const shellContractFixture = await verifyShellApp(shellPrivacyRoot, "milos-app.json");
+  assert(shellContractFixture.appKey === "reference-app", "Shell v2 verifier accepts the combined permanent-link reference fixture");
+  await syncEssentials({ "app-root": shellPrivacyRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true });
+  const shellPrivacyFixture = await verifyEssentials(shellPrivacyRoot, "essentials-manifest.json");
+  assert(shellPrivacyFixture.appKey === "reference-app", "verified Shell v2 footer satisfies permanent no-cookies privacy information without a duplicate app link");
+
+  const routedShellPrivacyRoot = path.join(tempRoot, "routed-shell-privacy-info");
+  await cp(shellPrivacyRoot, routedShellPrivacyRoot, { recursive: true });
+  const routedShellPrivacyEntryPath = path.join(routedShellPrivacyRoot, "index.html");
+  await writeFile(routedShellPrivacyEntryPath, (await readFile(routedShellPrivacyEntryPath, "utf8")).replace('src="vendor/milosapps-shell/v2/bootstrap.js"', 'src="/reference-assets/vendor/milosapps-shell/v2/bootstrap.js"'), "utf8");
+  const routedShellPrivacyFixture = await verifyEssentials(routedShellPrivacyRoot, "essentials-manifest.json");
+  assert(routedShellPrivacyFixture.appKey === "reference-app", "verified Shell footer supports a distinct same-origin routed bootstrap URL without a shadow asset");
+
+  const selfLockedInertShellRoot = path.join(tempRoot, "self-locked-inert-shell-privacy-info");
+  await cp(shellPrivacyRoot, selfLockedInertShellRoot, { recursive: true });
+  const selfLockedInertShellComponentPath = path.join(selfLockedInertShellRoot, "vendor", "milosapps-shell", "v2", "milos-app-shell.js");
+  const selfLockedInertShellComponent = Buffer.from((await readFile(selfLockedInertShellComponentPath, "utf8")).replace('<a href="${links.privacy}" data-text="privacy">', '<span data-text="privacy">'), "utf8");
+  await writeFile(selfLockedInertShellComponentPath, selfLockedInertShellComponent);
+  const selfLockedInertShellLockPath = path.join(selfLockedInertShellRoot, "vendor", "milosapps-shell", "v2", "shell-lock.json");
+  const selfLockedInertShellLock = JSON.parse(await readFile(selfLockedInertShellLockPath, "utf8"));
+  selfLockedInertShellLock.artifacts["milos-app-shell.js"] = digest(selfLockedInertShellComponent);
+  await writeFile(selfLockedInertShellLockPath, `${JSON.stringify(selfLockedInertShellLock, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(selfLockedInertShellRoot, "essentials-manifest.json"), /immutable v2\.0\.3 artifact/, "self-locked inert Shell component cannot impersonate the visible footer privacy link");
+
+  const duplicateShellPrivacyRoot = path.join(tempRoot, "duplicate-shell-privacy-info");
+  await cp(shellPrivacyRoot, duplicateShellPrivacyRoot, { recursive: true });
+  const duplicateShellPrivacyEntryPath = path.join(duplicateShellPrivacyRoot, "index.html");
+  await writeFile(duplicateShellPrivacyEntryPath, (await readFile(duplicateShellPrivacyEntryPath, "utf8")).replace('<milos-app-shell>', '<a data-milos-privacy-info href="https://dev.milos-apps.de/datenschutz">Datenschutz</a>\n    <milos-app-shell>'), "utf8");
+  await expectFailure(() => verifyEssentials(duplicateShellPrivacyRoot, "essentials-manifest.json"), /must not duplicate/, "Shell footer privacy evidence forbids a duplicate app link");
+
+  const unmarkedDuplicateShellPrivacyRoot = path.join(tempRoot, "unmarked-duplicate-shell-privacy-info");
+  await cp(shellPrivacyRoot, unmarkedDuplicateShellPrivacyRoot, { recursive: true });
+  const unmarkedDuplicateShellPrivacyEntryPath = path.join(unmarkedDuplicateShellPrivacyRoot, "index.html");
+  await writeFile(unmarkedDuplicateShellPrivacyEntryPath, (await readFile(unmarkedDuplicateShellPrivacyEntryPath, "utf8")).replace('<milos-app-shell>', '<a href="https://dev.milos-apps.de/datenschutz">Datenschutz</a>\n    <milos-app-shell>'), "utf8");
+  await expectFailure(() => verifyEssentials(unmarkedDuplicateShellPrivacyRoot, "essentials-manifest.json"), /must not duplicate/, "Shell footer privacy evidence forbids an unmarked duplicate app link to the same privacy URL");
+
+  const mismatchedShellPrivacyRoot = path.join(tempRoot, "mismatched-shell-privacy-info");
+  await cp(shellPrivacyRoot, mismatchedShellPrivacyRoot, { recursive: true });
+  const mismatchedShellManifestPath = path.join(mismatchedShellPrivacyRoot, "milos-app.json");
+  const mismatchedShellManifest = JSON.parse(await readFile(mismatchedShellManifestPath, "utf8"));
+  mismatchedShellManifest.appKey = "other-app";
+  await writeFile(mismatchedShellManifestPath, `${JSON.stringify(mismatchedShellManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(mismatchedShellPrivacyRoot, "essentials-manifest.json"), /shell manifest appKey must match/, "Shell footer privacy evidence is bound to the same app");
+
+  const mismatchedShellEnvironmentRoot = path.join(tempRoot, "mismatched-shell-environment");
+  await cp(shellPrivacyRoot, mismatchedShellEnvironmentRoot, { recursive: true });
+  const mismatchedShellEnvironmentPath = path.join(mismatchedShellEnvironmentRoot, "milos-app.json");
+  const mismatchedShellEnvironment = JSON.parse(await readFile(mismatchedShellEnvironmentPath, "utf8"));
+  mismatchedShellEnvironment.environment = "production";
+  mismatchedShellEnvironment.productionApproved = true;
+  await writeFile(mismatchedShellEnvironmentPath, `${JSON.stringify(mismatchedShellEnvironment, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(mismatchedShellEnvironmentRoot, "essentials-manifest.json"), /environment and production boundary must match/, "Shell footer privacy evidence is bound to the same environment and Production boundary");
+
+  const mismatchedShellEntryRoot = path.join(tempRoot, "mismatched-shell-entry");
+  await cp(shellPrivacyRoot, mismatchedShellEntryRoot, { recursive: true });
+  const mismatchedShellEntryPath = path.join(mismatchedShellEntryRoot, "milos-app.json");
+  const mismatchedShellEntry = JSON.parse(await readFile(mismatchedShellEntryPath, "utf8"));
+  mismatchedShellEntry.shellContract.entryHtml = "other.html";
+  await writeFile(mismatchedShellEntryPath, `${JSON.stringify(mismatchedShellEntry, null, 2)}\n`, "utf8");
+  await expectFailure(() => verifyEssentials(mismatchedShellEntryRoot, "essentials-manifest.json"), /same entry HTML/, "Shell footer privacy evidence is bound to the same entry document");
+
+  const wrongShellPrivacyUrlRoot = path.join(tempRoot, "wrong-shell-privacy-url");
+  await cp(shellPrivacyRoot, wrongShellPrivacyUrlRoot, { recursive: true });
+  const wrongShellPrivacyUrlManifestPath = path.join(wrongShellPrivacyUrlRoot, "essentials-manifest.json");
+  const wrongShellPrivacyUrlManifest = JSON.parse(await readFile(wrongShellPrivacyUrlManifestPath, "utf8"));
+  wrongShellPrivacyUrlManifest.privacy.privacyUrl = "https://example.test/privacy";
+  await writeFile(wrongShellPrivacyUrlManifestPath, `${JSON.stringify(wrongShellPrivacyUrlManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => syncEssentials({ "app-root": wrongShellPrivacyUrlRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }), /canonical environment privacyUrl/, "Shell footer privacy evidence cannot redirect to an arbitrary privacy URL");
+
+  const essentialOnlyShellPrivacyRoot = path.join(tempRoot, "essential-only-shell-privacy");
+  await cp(shellPrivacyRoot, essentialOnlyShellPrivacyRoot, { recursive: true });
+  const essentialOnlyShellPrivacyManifestPath = path.join(essentialOnlyShellPrivacyRoot, "essentials-manifest.json");
+  const essentialOnlyShellPrivacyManifest = JSON.parse(await readFile(essentialOnlyShellPrivacyManifestPath, "utf8"));
+  essentialOnlyShellPrivacyManifest.privacy.mode = "essential-only";
+  essentialOnlyShellPrivacyManifest.features.privacyNotice = true;
+  await writeFile(essentialOnlyShellPrivacyManifestPath, `${JSON.stringify(essentialOnlyShellPrivacyManifest, null, 2)}\n`, "utf8");
+  await expectFailure(() => syncEssentials({ "app-root": essentialOnlyShellPrivacyRoot, manifest: "essentials-manifest.json", "source-commit": zeroCommit, fixture: true }), /permanentLink.*additional property|only supported for no-cookies/i, "Shell footer evidence does not suppress the essential-only runtime notice");
 
   const wrongPrivacyLinkRoot = path.join(tempRoot, "wrong-privacy-link");
   await cp(fixtureRoot, wrongPrivacyLinkRoot, { recursive: true });
@@ -765,6 +897,18 @@ try {
   await cp(fixtureRoot, missingLoadingIconRoot, { recursive: true });
   await rm(path.join(missingLoadingIconRoot, "icon.svg"));
   await expectFailure(() => verifyEssentials(missingLoadingIconRoot, "essentials-manifest.json"), /loading icon is missing/, "missing app-owned loading icon");
+
+  const wrongLoadingIconSizeRoot = path.join(tempRoot, "wrong-loading-icon-size");
+  await cp(fixtureRoot, wrongLoadingIconSizeRoot, { recursive: true });
+  const wrongLoadingIconSizePath = path.join(wrongLoadingIconSizeRoot, "index.html");
+  await writeFile(wrongLoadingIconSizePath, (await readFile(wrongLoadingIconSizePath, "utf8")).replace('width="32" height="32"', 'width="48" height="48"'), "utf8");
+  await expectFailure(() => verifyEssentials(wrongLoadingIconSizeRoot, "essentials-manifest.json"), /exactly 32/, "legacy loading icon fallback size");
+
+  const numericLookingLoadingIconSizeRoot = path.join(tempRoot, "numeric-looking-loading-icon-size");
+  await cp(fixtureRoot, numericLookingLoadingIconSizeRoot, { recursive: true });
+  const numericLookingLoadingIconSizePath = path.join(numericLookingLoadingIconSizeRoot, "index.html");
+  await writeFile(numericLookingLoadingIconSizePath, (await readFile(numericLookingLoadingIconSizePath, "utf8")).replace('width="32" height="32"', 'width="32e0" height="32.0"'), "utf8");
+  await expectFailure(() => verifyEssentials(numericLookingLoadingIconSizeRoot, "essentials-manifest.json"), /exactly 32/, "numeric-looking non-canonical loading icon fallback size");
 
   const quotedLoaderMarkerRoot = path.join(tempRoot, "quoted-loader-marker");
   await cp(noLoaderRoot, quotedLoaderMarkerRoot, { recursive: true });
